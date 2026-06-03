@@ -59,6 +59,17 @@ fn safety_settings() -> Value {
     ])
 }
 
+/// "Thinking" budget (parity with Python): disabled (0) for Flash/Lite, 128 for
+/// Pro (which cannot fully disable it). Disabling thinking is what makes Gemini
+/// 2.5 respond quickly instead of pausing to "think".
+fn thinking_budget(model: &str) -> i32 {
+    if model.to_ascii_lowercase().contains("pro") {
+        128
+    } else {
+        0
+    }
+}
+
 pub fn build_body(req: &CorrectionRequest) -> Value {
     json!({
         "system_instruction": {"parts": [{"text": req.system_prompt()}]},
@@ -74,6 +85,7 @@ pub fn build_body(req: &CorrectionRequest) -> Value {
             "temperature": 0.7,
             "topP": 0.9,
             "topK": 32,
+            "thinkingConfig": { "thinkingBudget": thinking_budget(&req.model) },
         },
         "safetySettings": safety_settings(),
     })
@@ -149,6 +161,15 @@ mod tests {
         assert_eq!(b["contents"][0]["parts"][1]["text"], "tekst do poprawy");
         assert_eq!(b["safetySettings"][0]["threshold"], "BLOCK_NONE");
         assert_eq!(b["generationConfig"]["maxOutputTokens"], MAX_OUTPUT_TOKENS);
+    }
+
+    #[test]
+    fn thinking_disabled_for_flash_enabled_for_pro() {
+        assert_eq!(thinking_budget("gemini-2.5-flash"), 0);
+        assert_eq!(thinking_budget("gemini-2.5-flash-lite"), 0);
+        assert_eq!(thinking_budget("gemini-2.5-pro"), 128);
+        let b = build_body(&req());
+        assert_eq!(b["generationConfig"]["thinkingConfig"]["thinkingBudget"], 0);
     }
 
     #[test]

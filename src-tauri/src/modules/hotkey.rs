@@ -58,8 +58,11 @@ pub fn on_hotkey(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         let before = app.clipboard().read_text().unwrap_or_default();
 
-        // Simulate Ctrl+C, then poll the clipboard for a change (3 adaptive
-        // tries) before falling back to the fixed settle delay.
+        // Wait for the user to physically release Ctrl/Shift before we
+        // synthesize Ctrl+C — otherwise the still-held Shift turns our 'c' into
+        // Ctrl+Shift+C again and nothing is copied (this caused "schowek pusty").
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+
         if let Err(e) = tauri::async_runtime::spawn_blocking(clipboard::simulate_copy)
             .await
             .map_err(|e| e.to_string())
@@ -68,18 +71,23 @@ pub fn on_hotkey(app: &AppHandle) {
             tracing::warn!("simulate_copy failed: {e}");
         }
 
+        // Poll for a fresh copy (changed clipboard) over a few adaptive tries.
         let mut text = String::new();
-        for attempt in 0..3u32 {
-            tokio::time::sleep(std::time::Duration::from_millis(40 + 40 * attempt as u64)).await;
+        for attempt in 0..4u32 {
+            tokio::time::sleep(std::time::Duration::from_millis(60 + 50 * attempt as u64)).await;
             let now = app.clipboard().read_text().unwrap_or_default();
             if !now.trim().is_empty() && now != before {
                 text = now;
                 break;
             }
         }
-        if text.is_empty() {
-            tokio::time::sleep(clipboard::COPY_SETTLE).await;
-            text = app.clipboard().read_text().unwrap_or_default();
+        // Fallback: use whatever is in the clipboard now (selection may equal
+        // the previous content, or the user pre-copied) rather than failing.
+        if text.trim().is_empty() {
+            let now = app.clipboard().read_text().unwrap_or_default();
+            if !now.trim().is_empty() {
+                text = now;
+            }
         }
 
         if text.trim().is_empty() {

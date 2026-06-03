@@ -13,8 +13,6 @@ use enigo::{
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-/// Delay after simulating Ctrl+C before reading the clipboard (Python used 0.4s).
-pub const COPY_SETTLE: Duration = Duration::from_millis(400);
 /// Delay after hiding our window before simulating Ctrl+V into the target app.
 pub const PASTE_SETTLE: Duration = Duration::from_millis(200);
 

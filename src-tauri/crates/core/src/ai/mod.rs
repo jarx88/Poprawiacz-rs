@@ -111,10 +111,15 @@ async fn send_once(
         });
     }
 
+    // reqwest's request timeout only covers connect+headers; bound the body
+    // read explicitly so a slow/stalled body can't hang forever.
     let body: Value = tokio::select! {
         biased;
         _ = cancel.cancelled() => return Err(AiError::Cancelled { provider: provider.key().into() }),
-        r = resp.json() => r.map_err(|e| AiError::from_reqwest(provider.key(), timeout.as_secs(), &e))?,
+        r = tokio::time::timeout(timeout, resp.json::<Value>()) => match r {
+            Err(_) => return Err(AiError::Timeout { provider: provider.key().into(), seconds: timeout.as_secs() }),
+            Ok(inner) => inner.map_err(|e| AiError::from_reqwest(provider.key(), timeout.as_secs(), &e))?,
+        },
     };
 
     parse_body(provider, &body)
@@ -170,10 +175,15 @@ where
     let mut full = String::new();
 
     loop {
+        // Idle timeout: abort if no data arrives within the provider timeout
+        // (reqwest's request timeout does not cover streamed body reads).
         let next = tokio::select! {
             biased;
             _ = cancel.cancelled() => return Err(AiError::Cancelled { provider: provider.key().into() }),
-            n = stream.next() => n,
+            r = tokio::time::timeout(timeout, stream.next()) => match r {
+                Err(_) => return Err(AiError::Timeout { provider: provider.key().into(), seconds: timeout.as_secs() }),
+                Ok(n) => n,
+            },
         };
         let Some(chunk) = next else { break };
         let bytes = chunk.map_err(|e| AiError::from_reqwest(provider.key(), timeout.as_secs(), &e))?;
