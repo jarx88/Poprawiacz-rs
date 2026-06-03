@@ -281,6 +281,32 @@ textarea {
   }
 }
 
+/* Cienki, nieokreślony pasek postępu w nagłówku panelu (cyklicznie sunie 0->100%). */
+.panel__progress {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+}
+.panel__progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 2px;
+  animation: panel-progress 1.2s ease-in-out infinite;
+}
+@keyframes panel-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
 .diff {
   background: transparent;
   color: #ff9a9a;

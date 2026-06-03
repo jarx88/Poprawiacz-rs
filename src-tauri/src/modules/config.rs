@@ -10,8 +10,15 @@ use tauri::{AppHandle, Manager};
 
 const KEYCHAIN_SERVICE: &str = "PoprawiaczTekstu";
 
+/// Default clipboard processing delay (parity with Python `clipboard_delay_ms`).
+const DEFAULT_CLIPBOARD_DELAY_MS: u64 = 400;
+
+fn default_clipboard_delay_ms() -> u64 {
+    DEFAULT_CLIPBOARD_DELAY_MS
+}
+
 /// Non-secret settings persisted to `settings.json` in the app config dir.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub models: ProviderModels,
     pub default_style: String,
@@ -21,6 +28,21 @@ pub struct AppSettings {
     pub autostartup: bool,
     #[serde(default)]
     pub ai_settings: AiSettings,
+    #[serde(default = "default_clipboard_delay_ms")]
+    pub clipboard_delay_ms: u64,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            models: ProviderModels::default(),
+            default_style: String::new(),
+            highlight_diffs: false,
+            autostartup: false,
+            ai_settings: AiSettings::default(),
+            clipboard_delay_ms: DEFAULT_CLIPBOARD_DELAY_MS,
+        }
+    }
 }
 
 impl AppSettings {
@@ -99,6 +121,7 @@ pub struct SettingsView {
     pub highlight_diffs: bool,
     pub autostartup: bool,
     pub ai_settings: AiSettings,
+    pub clipboard_delay_ms: u64,
     /// provider key -> whether a key is stored
     pub keys_present: std::collections::HashMap<String, bool>,
 }
@@ -116,6 +139,7 @@ pub fn get_settings(app: AppHandle) -> SettingsView {
         highlight_diffs: s.highlight_diffs,
         autostartup: s.autostartup || super::autostart::is_enabled(),
         ai_settings: s.ai_settings,
+        clipboard_delay_ms: s.clipboard_delay_ms,
         keys_present,
     }
 }
@@ -132,6 +156,8 @@ pub struct SaveSettingsPayload {
     pub autostartup: bool,
     #[serde(default)]
     pub ai_settings: AiSettings,
+    #[serde(default = "default_clipboard_delay_ms")]
+    pub clipboard_delay_ms: u64,
     #[serde(default)]
     pub api_keys: std::collections::HashMap<String, String>,
 }
@@ -148,6 +174,7 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
         highlight_diffs: payload.highlight_diffs,
         autostartup: payload.autostartup,
         ai_settings: payload.ai_settings.clone(),
+        clipboard_delay_ms: payload.clipboard_delay_ms,
     }
     .ensure_style();
     persist_settings(app, &settings)?;
@@ -176,6 +203,7 @@ pub fn migrate_config_ini(app: AppHandle, path: String) -> Result<u32, String> {
         highlight_diffs: legacy.settings.highlight_diffs,
         autostartup: legacy.settings.autostartup,
         ai_settings: legacy.ai_settings.clone(),
+        clipboard_delay_ms: legacy.settings.clipboard_delay_ms,
     }
     .ensure_style();
     persist_settings(&app, &settings)?;

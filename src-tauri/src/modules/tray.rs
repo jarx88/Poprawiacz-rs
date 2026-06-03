@@ -1,16 +1,18 @@
-//! System tray: icon + context menu (Pokaż / Zakończ), left-click shows the
-//! window. Mirrors the Python app's tray behavior.
+//! System tray: icon + context menu (Pokaż / Ustawienia / Zakończ), left-click
+//! shows the window. Mirrors the Python app's tray behavior.
 
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
 };
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Pokaż okno", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Ustawienia", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Zakończ", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &settings, &separator, &quit])?;
 
     TrayIconBuilder::with_id("main-tray")
         .icon(
@@ -23,6 +25,11 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main(app),
+            // Frontend (App.tsx) nasłuchuje "open-settings" i otwiera dialog ustawień.
+            "settings" => {
+                show_main(app);
+                let _ = app.emit("open-settings", ());
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -46,5 +53,9 @@ pub fn show_main(app: &AppHandle) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        // Krótko wymuszamy "always on top", żeby podnieść okno nad inne aplikacje,
+        // a zaraz potem zdejmujemy flagę (best-effort, ignorujemy błędy).
+        let _ = w.set_always_on_top(true);
+        let _ = w.set_always_on_top(false);
     }
 }

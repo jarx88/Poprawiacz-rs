@@ -45,11 +45,27 @@ impl ProviderModels {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// Default clipboard processing delay (Python `ClipboardProcessingDelayMs`).
+pub const DEFAULT_CLIPBOARD_DELAY_MS: u64 = 400;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GeneralSettings {
     pub autostartup: bool,
     pub default_style: String,
     pub highlight_diffs: bool,
+    /// Total settle time (ms) for the copy-from-selection step.
+    pub clipboard_delay_ms: u64,
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self {
+            autostartup: false,
+            default_style: String::new(),
+            highlight_diffs: false,
+            clipboard_delay_ms: DEFAULT_CLIPBOARD_DELAY_MS,
+        }
+    }
 }
 
 /// `[AI_SETTINGS]` — used by the OpenAI Responses API (gpt-5/o1).
@@ -123,6 +139,9 @@ pub fn parse_ini(content: &str) -> Result<LegacyConfig, String> {
         autostartup: get("settings", "autostartup").as_deref().map(truthy).unwrap_or(false),
         default_style: get("settings", "defaultstyle").unwrap_or_else(|| "normal".to_string()),
         highlight_diffs: get("settings", "highlightdiffs").as_deref().map(truthy).unwrap_or(false),
+        clipboard_delay_ms: get("settings", "clipboard_delay_ms")
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .unwrap_or(DEFAULT_CLIPBOARD_DELAY_MS),
     };
 
     let ai_defaults = AiSettings::default();
@@ -183,9 +202,22 @@ mod tests {
         let c = parse_ini("").unwrap();
         assert!(!c.settings.autostartup);
         assert_eq!(c.settings.default_style, "normal");
+        assert_eq!(c.settings.clipboard_delay_ms, 400);
         assert!(c.api_keys.is_empty());
         assert_eq!(c.ai_settings.reasoning_effort, "low");
         assert_eq!(c.ai_settings.verbosity, "medium");
+    }
+
+    #[test]
+    fn parses_clipboard_delay() {
+        let c = parse_ini("[SETTINGS]\nclipboard_delay_ms = 750\n").unwrap();
+        assert_eq!(c.settings.clipboard_delay_ms, 750);
+    }
+
+    #[test]
+    fn invalid_clipboard_delay_falls_back_to_default() {
+        let c = parse_ini("[SETTINGS]\nclipboard_delay_ms = abc\n").unwrap();
+        assert_eq!(c.settings.clipboard_delay_ms, 400);
     }
 
     #[test]

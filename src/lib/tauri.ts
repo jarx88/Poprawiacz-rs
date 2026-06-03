@@ -20,6 +20,7 @@ export interface SettingsView {
   highlight_diffs: boolean;
   autostartup: boolean;
   ai_settings: AiSettings;
+  clipboard_delay_ms: number;
   keys_present: Record<string, boolean>;
 }
 
@@ -29,6 +30,7 @@ export interface SaveSettingsPayload {
   highlight_diffs: boolean;
   autostartup: boolean;
   ai_settings: AiSettings;
+  clipboard_delay_ms: number;
   api_keys: Partial<Record<Provider, string>>;
 }
 
@@ -36,6 +38,11 @@ export interface SaveSettingsPayload {
 
 export const startCorrection = (text: string, style: string): Promise<number> =>
   invoke("start_correction", { text, style });
+
+/** Diagnostic: write a line to the backend file log from the frontend. */
+export const feLog = (message: string): void => {
+  void invoke("fe_log", { message }).catch(() => {});
+};
 
 export const cancelSession = (): Promise<void> => invoke("cancel_session");
 
@@ -87,3 +94,6 @@ export const onRestarted = (cb: (e: CancelEvent) => void): Promise<UnlistenFn> =
 
 export const onHotkeyEmpty = (cb: () => void): Promise<UnlistenFn> =>
   listen("hotkey-empty", () => cb());
+
+export const onOpenSettings = (cb: () => void): Promise<UnlistenFn> =>
+  listen("open-settings", () => cb());

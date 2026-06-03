@@ -56,12 +56,20 @@ pub fn register(app: &AppHandle) {
 pub fn on_hotkey(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        // Total settle budget for the copy-from-selection step (configurable,
+        // parity with Python `clipboard_delay_ms`; default 400ms).
+        let settle_ms = config::load_settings(&app).clipboard_delay_ms;
+
         let before = app.clipboard().read_text().unwrap_or_default();
 
         // Wait for the user to physically release Ctrl/Shift before we
         // synthesize Ctrl+C — otherwise the still-held Shift turns our 'c' into
         // Ctrl+Shift+C again and nothing is copied (this caused "schowek pusty").
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        // Split the budget: ~60% for the release wait, the rest for polling the
+        // clipboard for a fresh copy.
+        let release_wait_ms = settle_ms * 6 / 10;
+        let poll_budget_ms = settle_ms.saturating_sub(release_wait_ms);
+        tokio::time::sleep(std::time::Duration::from_millis(release_wait_ms)).await;
 
         if let Err(e) = tauri::async_runtime::spawn_blocking(clipboard::simulate_copy)
             .await
@@ -71,10 +79,13 @@ pub fn on_hotkey(app: &AppHandle) {
             tracing::warn!("simulate_copy failed: {e}");
         }
 
-        // Poll for a fresh copy (changed clipboard) over a few adaptive tries.
+        // Poll for a fresh copy (changed clipboard) over a few adaptive tries,
+        // spreading the remaining budget across the attempts.
+        const POLL_ATTEMPTS: u64 = 4;
+        let poll_step_ms = (poll_budget_ms / POLL_ATTEMPTS).max(1);
         let mut text = String::new();
-        for attempt in 0..4u32 {
-            tokio::time::sleep(std::time::Duration::from_millis(60 + 50 * attempt as u64)).await;
+        for _ in 0..POLL_ATTEMPTS {
+            tokio::time::sleep(std::time::Duration::from_millis(poll_step_ms)).await;
             let now = app.clipboard().read_text().unwrap_or_default();
             if !now.trim().is_empty() && now != before {
                 text = now;

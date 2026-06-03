@@ -55,6 +55,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ai::start_correction,
+            ai::fe_log,
             ai::reprocess_provider,
             ai::cancel_session,
             ai::cancel_provider,

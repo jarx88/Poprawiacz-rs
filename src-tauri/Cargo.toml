@@ -36,7 +36,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "registry", "std", "ansi"] }
 keyring = { version = "3", default-features = false, features = ["windows-native", "apple-native", "linux-native"] }
 enigo = "0.2"
 

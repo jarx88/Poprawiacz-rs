@@ -1,5 +1,6 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { CorrectionView } from "./features/correction/CorrectionView";
+import { onOpenSettings } from "./lib/tauri";
 
 // Settings is heavier and rarely opened — lazy-load it so the shell renders fast.
 const SettingsDialog = lazy(
@@ -8,6 +9,14 @@ const SettingsDialog = lazy(
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Tray "Ustawienia" menu item opens the dialog.
+  useEffect(() => {
+    const un = onOpenSettings(() => setSettingsOpen(true));
+    return () => {
+      un.then((fn) => fn()).catch(() => {});
+    };
+  }, []);
 
   return (
     <div className="app">

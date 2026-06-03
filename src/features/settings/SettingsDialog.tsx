@@ -34,6 +34,7 @@ export default function SettingsDialog({ onClose }: Props) {
   const [defaultStyle, setDefaultStyle] = useState("normal");
   const [highlightDiffs, setHighlightDiffs] = useState(false);
   const [autostartup, setAutostartup] = useState(false);
+  const [clipboardDelayMs, setClipboardDelayMs] = useState(400);
   const [ai, setAi] = useState<AiSettings>({ reasoning_effort: "high", verbosity: "medium" });
   const [keysPresent, setKeysPresent] = useState<Record<string, boolean>>({});
   const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
@@ -50,6 +51,7 @@ export default function SettingsDialog({ onClose }: Props) {
     setDefaultStyle(s.default_style || "normal");
     setHighlightDiffs(s.highlight_diffs);
     setAutostartup(s.autostartup);
+    setClipboardDelayMs(s.clipboard_delay_ms);
     setAi(s.ai_settings);
     setKeysPresent(s.keys_present ?? {});
   };
@@ -71,6 +73,7 @@ export default function SettingsDialog({ onClose }: Props) {
         highlight_diffs: highlightDiffs,
         autostartup,
         ai_settings: ai,
+        clipboard_delay_ms: clipboardDelayMs,
         api_keys: apiKeys,
       });
       onClose();
@@ -124,6 +127,16 @@ export default function SettingsDialog({ onClose }: Props) {
             onChange={(e) => setAutostartup(e.target.checked)}
           />
           Uruchamiaj przy starcie systemu (Windows)
+        </label>
+
+        <label className="field">
+          Opóźnienie schowka (ms)
+          <input
+            type="number"
+            min={0}
+            value={clipboardDelayMs}
+            onChange={(e) => setClipboardDelayMs(Number(e.target.value))}
+          />
         </label>
 
         <fieldset className="provider-settings">

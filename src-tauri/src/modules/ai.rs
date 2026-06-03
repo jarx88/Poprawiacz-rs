@@ -165,6 +165,13 @@ fn emit_error(app: &AppHandle, session_id: u64, provider: Provider, message: &st
     );
 }
 
+/// Diagnostic: let the frontend write a line to the file log so we can observe
+/// whether/which events reach the webview.
+#[tauri::command]
+pub fn fe_log(message: String) {
+    tracing::info!(target: "frontend", "FE: {message}");
+}
+
 /// Manually start a correction from the UI (e.g. paste-and-correct).
 #[tauri::command]
 pub fn start_correction(app: AppHandle, text: String, style: String) -> u64 {

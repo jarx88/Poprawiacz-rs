@@ -119,6 +119,17 @@ export function ProviderPanel({
         </span>
       </header>
 
+      {/* Cienki, cyklicznie sunący pasek postępu — widoczny tylko gdy panel pracuje. */}
+      {busy && (
+        <div
+          className="panel__progress"
+          role="progressbar"
+          aria-label="Trwa przetwarzanie"
+        >
+          <div className="panel__progress-bar" />
+        </div>
+      )}
+
       <div className="panel__body">{body()}</div>
 
       <button
