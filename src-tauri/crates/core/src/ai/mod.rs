@@ -78,6 +78,18 @@ fn parse_stream_line(provider: Provider, line: &str) -> Result<Option<String>, A
     }
 }
 
+/// Whether an SSE line signals end-of-stream. Critical: OpenAI/DeepSeek send
+/// `data: [DONE]` but keep the HTTP connection alive, so we must stop on the
+/// sentinel instead of waiting for the body to close (which would hang).
+fn is_stream_done(provider: Provider, line: &str) -> bool {
+    let l = line.trim();
+    match provider {
+        Provider::OpenAI | Provider::DeepSeek => l == "data: [DONE]" || l == "[DONE]",
+        Provider::Anthropic => l.starts_with("data:") && l.contains("\"type\":\"message_stop\""),
+        Provider::Gemini => false,
+    }
+}
+
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
@@ -190,12 +202,20 @@ where
         buf.push_str(&String::from_utf8_lossy(&bytes));
 
         // Process complete lines; keep the trailing partial line in `buf`.
+        let mut done = false;
         while let Some(pos) = buf.find('\n') {
             let line: String = buf.drain(..=pos).collect();
+            if is_stream_done(provider, &line) {
+                done = true;
+                break;
+            }
             if let Some(delta) = parse_stream_line(provider, &line)? {
                 full.push_str(&delta);
                 on_chunk(&delta);
             }
+        }
+        if done {
+            break; // stop on [DONE]/message_stop instead of waiting for close
         }
     }
     // flush any trailing line without newline
@@ -222,5 +242,18 @@ mod tests {
     #[test]
     fn client_builds() {
         assert!(build_client().is_ok());
+    }
+
+    #[test]
+    fn stream_done_detection() {
+        assert!(is_stream_done(Provider::OpenAI, "data: [DONE]"));
+        assert!(is_stream_done(Provider::DeepSeek, "data: [DONE]"));
+        assert!(!is_stream_done(Provider::OpenAI, "data: {\"choices\":[]}"));
+        assert!(is_stream_done(
+            Provider::Anthropic,
+            "data: {\"type\":\"message_stop\"}"
+        ));
+        assert!(!is_stream_done(Provider::Anthropic, "data: {\"type\":\"ping\"}"));
+        assert!(!is_stream_done(Provider::Gemini, "data: {}"));
     }
 }

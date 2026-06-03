@@ -95,6 +95,17 @@ export function CorrectionView() {
 
   const done = completedCount(panels);
 
+  // Optimistic cancel: flip the panel(s) immediately, then tell the backend to
+  // abort the request (don't wait for the round-trip event).
+  const cancelOne = (prov: Provider) => {
+    applyCancelled({ session_id: sessionId, provider: prov });
+    cancelProvider(prov);
+  };
+  const cancelAll = () => {
+    PROVIDERS.forEach((p) => applyCancelled({ session_id: sessionId, provider: p }));
+    cancelSession();
+  };
+
   return (
     <div className="correction">
       <div className="correction__bar">
@@ -112,7 +123,7 @@ export function CorrectionView() {
           ))}
         </select>
         <button onClick={runManual}>▶️ Popraw</button>
-        <button onClick={() => cancelSession()}>❌ Anuluj wszystko</button>
+        <button onClick={cancelAll}>❌ Anuluj wszystko</button>
         <button onClick={() => setShowOriginal(true)} disabled={!originalText}>
           📄 Oryginał
         </button>
@@ -137,7 +148,7 @@ export function CorrectionView() {
             originalText={originalText}
             highlightDiffs={highlightDiffs}
             onUse={onUse}
-            onCancel={(prov: Provider) => cancelProvider(prov)}
+            onCancel={(prov: Provider) => cancelOne(prov)}
             onReprocess={(prov: Provider, st: string) => reprocessProvider(prov, st)}
           />
         ))}

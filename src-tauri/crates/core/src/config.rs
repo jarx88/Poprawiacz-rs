@@ -62,7 +62,9 @@ pub struct AiSettings {
 impl Default for AiSettings {
     fn default() -> Self {
         Self {
-            reasoning_effort: "high".to_string(),
+            // "low" keeps reasoning models (gpt-5/o-series) responsive; the user
+            // can raise it in Settings.
+            reasoning_effort: "low".to_string(),
             verbosity: "medium".to_string(),
         }
     }
@@ -182,7 +184,7 @@ mod tests {
         assert!(!c.settings.autostartup);
         assert_eq!(c.settings.default_style, "normal");
         assert!(c.api_keys.is_empty());
-        assert_eq!(c.ai_settings.reasoning_effort, "high");
+        assert_eq!(c.ai_settings.reasoning_effort, "low");
         assert_eq!(c.ai_settings.verbosity, "medium");
     }
 
