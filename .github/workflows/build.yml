@@ -33,6 +33,7 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+        continue-on-error: true
         with:
           workspaces: src-tauri
 
@@ -70,6 +71,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        continue-on-error: true
         with:
           workspaces: src-tauri
 
