@@ -34,6 +34,13 @@ pub fn run() {
         )
         .manage(AppState::new(http))
         .setup(|app| {
+            // Enforce the frameless window at runtime too — the conf flag can be
+            // overridden by restored window state on some setups, leaving the
+            // native title bar visible.
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_decorations(false);
+                let _ = win.set_shadow(true);
+            }
             hotkey::register(app.handle());
             tray::build(app.handle())?;
             // Apply persisted autostart preference at launch (Windows).
