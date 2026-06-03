@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
+import { Titlebar } from "./Titlebar";
 import { CorrectionView } from "./features/correction/CorrectionView";
 import { onOpenSettings } from "./lib/tauri";
 
@@ -20,12 +21,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app__top">
-        <strong>⌨️ Ctrl+Shift+C</strong>
-        <span>— zaznacz tekst i naciśnij skrót, aby poprawić</span>
-        <span style={{ flex: 1 }} />
-        <button onClick={() => setSettingsOpen(true)}>⚙️ Ustawienia</button>
-      </header>
+      <Titlebar onSettings={() => setSettingsOpen(true)} />
 
       <CorrectionView />
 

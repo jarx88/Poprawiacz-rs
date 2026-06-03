@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   cancelProvider,
   cancelSession,
-  feLog,
   getSettings,
   onCancelled,
   onChunk,
@@ -53,28 +52,16 @@ export function CorrectionView() {
   useEffect(() => {
     const unsubs = [
       onSessionStarted((e) => {
-        feLog(`session-started sid=${e.session_id}`);
         setInput(e.text);
         startSession(e.session_id, e.text);
       }),
       onChunk((e) => applyChunk(e)),
-      onResult((e) => {
-        feLog(
-          `result ${e.provider} sid=${e.session_id} store=${useCorrectionStore.getState().sessionId} len=${e.text.length}`,
-        );
-        applyResult(e);
-        feLog(`after-apply ${e.provider} status=${useCorrectionStore.getState().panels[e.provider].status}`);
-      }),
-      onError((e) => {
-        feLog(`error ${e.provider} sid=${e.session_id} msg=${e.message}`);
-        applyError(e);
-      }),
+      onResult((e) => applyResult(e)),
+      onError((e) => applyError(e)),
       onCancelled((e) => applyCancelled(e)),
       onRestarted((e) => applyRestarted(e)),
       onHotkeyEmpty(() => setNotice("Schowek jest pusty — zaznacz tekst i spróbuj ponownie.")),
     ];
-    unsubs.forEach((p) => p.catch((err) => feLog(`listen FAILED: ${err}`)));
-    feLog("listeners registering");
     return () => {
       unsubs.forEach((p) => p.then((fn) => fn()).catch(() => {}));
     };

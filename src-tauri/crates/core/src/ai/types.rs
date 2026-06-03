@@ -15,11 +15,16 @@ pub const DEEPSEEK_TIMEOUT: Duration = Duration::from_secs(35);
 pub const MAX_RETRIES: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum Provider {
+    // Explicit names — `rename_all="snake_case"` would mangle the acronyms into
+    // `open_a_i` / `deep_seek`, breaking the frontend panel keys.
+    #[serde(rename = "openai")]
     OpenAI,
+    #[serde(rename = "anthropic")]
     Anthropic,
+    #[serde(rename = "gemini")]
     Gemini,
+    #[serde(rename = "deepseek")]
     DeepSeek,
 }
 
@@ -134,5 +139,17 @@ mod tests {
     fn keys_are_lowercase_and_stable() {
         assert_eq!(Provider::OpenAI.key(), "openai");
         assert_eq!(Provider::DeepSeek.key(), "deepseek");
+    }
+
+    #[test]
+    fn serde_serialization_matches_key() {
+        // The frontend keys panels by these exact strings; serde must agree.
+        for p in Provider::ALL {
+            let json = serde_json::to_string(&p).unwrap();
+            assert_eq!(json, format!("\"{}\"", p.key()), "serde mismatch for {p:?}");
+        }
+        // Guard against the snake_case acronym bug specifically.
+        assert_eq!(serde_json::to_string(&Provider::OpenAI).unwrap(), "\"openai\"");
+        assert_eq!(serde_json::to_string(&Provider::DeepSeek).unwrap(), "\"deepseek\"");
     }
 }
