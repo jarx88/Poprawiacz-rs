@@ -2,8 +2,10 @@
 //! per-provider streaming/result/error events tagged with the session id.
 //! Each provider has its own cancellation token (cancel one or cancel all).
 
-use std::time::Instant;
+use std::panic::AssertUnwindSafe;
+use std::time::{Duration, Instant};
 
+use futures_util::FutureExt;
 use poprawiacz_core::ai::{self, AiError, CorrectionRequest, Provider};
 use poprawiacz_core::Style;
 use serde_json::json;
@@ -34,59 +36,88 @@ fn spawn_provider(
     let app = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        let Some(api_key) = key else {
-            emit_error(&app, session_id, provider, "Brak klucza API");
-            return;
-        };
+        let app_guard = app.clone();
+        // Hard ceiling so the panel ALWAYS resolves even if a lower layer hangs.
+        let hard = provider.timeout() + Duration::from_secs(15);
 
-        let stream = provider.supports_streaming();
-        let req = CorrectionRequest {
-            provider,
-            model,
-            api_key,
-            style,
-            text,
-            stream,
-            reasoning_effort,
-            verbosity,
-        };
+        let work = AssertUnwindSafe(async move {
+            tracing::info!(provider = provider.key(), session_id, "task: start");
+            let Some(api_key) = key else {
+                tracing::warn!(provider = provider.key(), "task: no API key");
+                emit_error(&app, session_id, provider, "Brak klucza API");
+                return;
+            };
 
-        let started = Instant::now();
-        let result = if stream {
-            let app_chunk = app.clone();
-            ai::correct_stream(&http, &req, &token, move |delta| {
-                let _ = app_chunk.emit(
-                    "provider-chunk",
-                    json!({ "session_id": session_id, "provider": provider, "delta": delta }),
-                );
-            })
-            .await
-        } else {
-            ai::correct(&http, &req, &token).await
-        };
+            let stream = provider.supports_streaming();
+            tracing::info!(provider = provider.key(), model = %model, stream, "task: sending request");
+            let req = CorrectionRequest {
+                provider,
+                model,
+                api_key,
+                style,
+                text,
+                stream,
+                reasoning_effort,
+                verbosity,
+            };
 
-        let elapsed_ms = started.elapsed().as_millis() as u64;
-        match result {
-            Ok(text) => {
-                let _ = app.emit(
-                    "provider-result",
-                    json!({
-                        "session_id": session_id,
-                        "provider": provider,
-                        "text": text,
-                        "elapsed_ms": elapsed_ms,
-                    }),
-                );
+            let started = Instant::now();
+            let result = if stream {
+                let app_chunk = app.clone();
+                ai::correct_stream(&http, &req, &token, move |delta| {
+                    let _ = app_chunk.emit(
+                        "provider-chunk",
+                        json!({ "session_id": session_id, "provider": provider, "delta": delta }),
+                    );
+                })
+                .await
+            } else {
+                ai::correct(&http, &req, &token).await
+            };
+
+            let elapsed_ms = started.elapsed().as_millis() as u64;
+            match result {
+                Ok(text) => {
+                    tracing::info!(provider = provider.key(), elapsed_ms, len = text.len(), "task: result");
+                    let _ = app.emit(
+                        "provider-result",
+                        json!({
+                            "session_id": session_id,
+                            "provider": provider,
+                            "text": text,
+                            "elapsed_ms": elapsed_ms,
+                        }),
+                    );
+                }
+                Err(AiError::Cancelled { .. }) => {
+                    tracing::info!(provider = provider.key(), "task: cancelled");
+                    let _ = app.emit(
+                        "provider-cancelled",
+                        json!({ "session_id": session_id, "provider": provider }),
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(provider = provider.key(), elapsed_ms, "task: error: {e}");
+                    emit_error(&app, session_id, provider, &e.to_string());
+                }
             }
-            Err(AiError::Cancelled { .. }) => {
-                let _ = app.emit(
-                    "provider-cancelled",
-                    json!({ "session_id": session_id, "provider": provider }),
-                );
+        });
+
+        // Run with panic-capture + a hard timeout so the UI never spins forever.
+        match tokio::time::timeout(hard, work.catch_unwind()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(_panic)) => {
+                tracing::error!(provider = provider.key(), "task: PANICKED");
+                emit_error(&app_guard, session_id, provider, "Wewnętrzny błąd (panic) — sprawdź log");
             }
-            Err(e) => {
-                tracing::error!(provider = provider.key(), "AI error: {e}");
-                emit_error(&app, session_id, provider, &e.to_string());
+            Err(_elapsed) => {
+                tracing::error!(provider = provider.key(), secs = hard.as_secs(), "task: HARD TIMEOUT");
+                emit_error(
+                    &app_guard,
+                    session_id,
+                    provider,
+                    &format!("Przekroczono czas ({}s)", hard.as_secs()),
+                );
             }
         }
     });
