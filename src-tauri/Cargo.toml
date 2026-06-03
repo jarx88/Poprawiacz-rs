@@ -1,0 +1,52 @@
+[package]
+name = "poprawiacz"
+version = "0.1.0"
+description = "PoprawiaczTekstu — multi-provider AI text correction (Tauri 2)"
+authors = ["Jarek"]
+edition = "2021"
+rust-version = "1.77"
+
+[workspace]
+members = ["crates/core"]
+resolver = "2"
+
+[lib]
+name = "poprawiacz_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+poprawiacz-core = { path = "crates/core" }
+
+tauri = { version = "2", features = [] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-log = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
+tauri-plugin-window-state = "2"
+
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+keyring = { version = "3", default-features = false, features = ["windows-native", "apple-native", "linux-native"] }
+enigo = "0.2"
+
+# Release profile tuned for small, fast binaries (Terax-inspired).
+[profile.release]
+lto = "fat"
+opt-level = "s"
+codegen-units = 1
+panic = "abort"
+strip = true
+incremental = false
