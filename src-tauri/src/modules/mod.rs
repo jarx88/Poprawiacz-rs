@@ -6,6 +6,7 @@ pub mod clipboard;
 pub mod config;
 pub mod hotkey;
 pub mod logging;
+pub mod tray;
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;

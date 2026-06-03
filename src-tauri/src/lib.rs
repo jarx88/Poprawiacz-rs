@@ -4,7 +4,7 @@
 
 mod modules;
 
-use modules::{ai, clipboard, config, hotkey, logging, AppState};
+use modules::{ai, clipboard, config, hotkey, logging, tray, AppState};
 use poprawiacz_core::ai::build_client;
 use tauri_plugin_global_shortcut::ShortcutState;
 
@@ -20,11 +20,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
-                .build(),
-        )
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -42,7 +37,16 @@ pub fn run() {
             if let Err(e) = app.global_shortcut().register(hotkey::correction_shortcut()) {
                 tracing::error!("failed to register global shortcut: {e}");
             }
+            tray::build(app.handle())?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the window hides it to the tray instead of quitting
+            // (quit via the tray "Zakończ" item), matching the Python app.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             ai::start_correction,
