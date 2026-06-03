@@ -40,6 +40,9 @@ tracing-subscriber = { version = "0.3", features = ["fmt"] }
 keyring = { version = "3", default-features = false, features = ["windows-native", "apple-native", "linux-native"] }
 enigo = "0.2"
 
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+
 # Release profile tuned for small, fast binaries (Terax-inspired).
 [profile.release]
 lto = "fat"

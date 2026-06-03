@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use poprawiacz_core::ai::Provider;
-use poprawiacz_core::config::{parse_ini, ProviderModels};
+use poprawiacz_core::config::{parse_ini, AiSettings, ProviderModels};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -15,6 +15,12 @@ const KEYCHAIN_SERVICE: &str = "PoprawiaczTekstu";
 pub struct AppSettings {
     pub models: ProviderModels,
     pub default_style: String,
+    #[serde(default)]
+    pub highlight_diffs: bool,
+    #[serde(default)]
+    pub autostartup: bool,
+    #[serde(default)]
+    pub ai_settings: AiSettings,
 }
 
 impl AppSettings {
@@ -90,6 +96,9 @@ fn has_api_key(provider: Provider) -> bool {
 pub struct SettingsView {
     pub models: ProviderModels,
     pub default_style: String,
+    pub highlight_diffs: bool,
+    pub autostartup: bool,
+    pub ai_settings: AiSettings,
     /// provider key -> whether a key is stored
     pub keys_present: std::collections::HashMap<String, bool>,
 }
@@ -104,6 +113,9 @@ pub fn get_settings(app: AppHandle) -> SettingsView {
     SettingsView {
         models: s.models,
         default_style: s.default_style,
+        highlight_diffs: s.highlight_diffs,
+        autostartup: s.autostartup || super::autostart::is_enabled(),
+        ai_settings: s.ai_settings,
         keys_present,
     }
 }
@@ -114,6 +126,12 @@ pub fn get_settings(app: AppHandle) -> SettingsView {
 pub struct SaveSettingsPayload {
     pub models: ProviderModels,
     pub default_style: String,
+    #[serde(default)]
+    pub highlight_diffs: bool,
+    #[serde(default)]
+    pub autostartup: bool,
+    #[serde(default)]
+    pub ai_settings: AiSettings,
     #[serde(default)]
     pub api_keys: std::collections::HashMap<String, String>,
 }
@@ -127,6 +145,9 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
     let settings = AppSettings {
         models: payload.models.clone(),
         default_style: payload.default_style.clone(),
+        highlight_diffs: payload.highlight_diffs,
+        autostartup: payload.autostartup,
+        ai_settings: payload.ai_settings.clone(),
     }
     .ensure_style();
     persist_settings(app, &settings)?;
@@ -134,6 +155,10 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
         if let Some(k) = payload.api_keys.get(p.key()) {
             set_api_key(p, k)?;
         }
+    }
+    // Reflect autostart preference into the OS (Windows registry).
+    if let Err(e) = super::autostart::set_enabled(payload.autostartup) {
+        tracing::warn!("autostart update failed: {e}");
     }
     Ok(())
 }
@@ -148,6 +173,9 @@ pub fn migrate_config_ini(app: AppHandle, path: String) -> Result<u32, String> {
     let settings = AppSettings {
         models: legacy.models.clone(),
         default_style: legacy.settings.default_style.clone(),
+        highlight_diffs: legacy.settings.highlight_diffs,
+        autostartup: legacy.settings.autostartup,
+        ai_settings: legacy.ai_settings.clone(),
     }
     .ensure_style();
     persist_settings(&app, &settings)?;

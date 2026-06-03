@@ -1,23 +1,52 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import {
+  cancelProvider,
   cancelSession,
+  getSettings,
+  onCancelled,
   onChunk,
   onError,
+  onHotkeyEmpty,
   onResult,
+  onRestarted,
   onSessionStarted,
   pasteText,
   readClipboard,
+  reprocessProvider,
   startCorrection,
 } from "../../lib/tauri";
+import { OriginalTextModal } from "./OriginalTextModal";
 import { ProviderPanel } from "./ProviderPanel";
-import { useCorrectionStore } from "./store";
-import { PROVIDERS, STYLES, Style } from "./types";
+import { completedCount, useCorrectionStore } from "./store";
+import { PROVIDERS, Provider, STYLES, STYLE_LABELS, Style } from "./types";
 
 export function CorrectionView() {
-  const { sessionId, panels, startSession, applyChunk, applyResult, applyError } =
-    useCorrectionStore();
+  const {
+    sessionId,
+    originalText,
+    panels,
+    startSession,
+    applyChunk,
+    applyResult,
+    applyError,
+    applyCancelled,
+    applyRestarted,
+  } = useCorrectionStore();
   const [input, setInput] = useState("");
   const [style, setStyle] = useState<Style>("normal");
+  const [highlightDiffs, setHighlightDiffs] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        setHighlightDiffs(s.highlight_diffs);
+        if (s.default_style) setStyle(s.default_style as Style);
+      })
+      .catch(() => {});
+  }, []);
 
   // Wire backend events to the store once.
   useEffect(() => {
@@ -29,13 +58,17 @@ export function CorrectionView() {
       onChunk((e) => applyChunk(e)),
       onResult((e) => applyResult(e)),
       onError((e) => applyError(e)),
+      onCancelled((e) => applyCancelled(e)),
+      onRestarted((e) => applyRestarted(e)),
+      onHotkeyEmpty(() => setNotice("Schowek jest pusty — zaznacz tekst i spróbuj ponownie.")),
     ];
     return () => {
       unsubs.forEach((p) => p.then((fn) => fn()).catch(() => {}));
     };
-  }, [applyChunk, applyError, applyResult, startSession]);
+  }, [applyChunk, applyError, applyResult, applyCancelled, applyRestarted, startSession]);
 
   const runManual = async () => {
+    setNotice(null);
     let text = input;
     if (text.trim() === "") {
       try {
@@ -44,7 +77,10 @@ export function CorrectionView() {
         text = "";
       }
     }
-    if (text.trim() === "") return;
+    if (text.trim() === "") {
+      setNotice("Brak tekstu do poprawy.");
+      return;
+    }
     const id = await startCorrection(text, style);
     startSession(id, text);
   };
@@ -53,14 +89,17 @@ export function CorrectionView() {
     try {
       await pasteText(text);
     } catch (e) {
-      console.error("paste failed", e);
+      setNotice(`Wklejanie nie powiodło się: ${e}`);
     }
   };
+
+  const done = completedCount(panels);
 
   return (
     <div className="correction">
       <div className="correction__bar">
         <span className="correction__session">📝 Sesja: {sessionId}</span>
+        <span className="correction__counter">🤖 API: {done}/4</span>
         <select
           value={style}
           onChange={(e) => setStyle(e.target.value as Style)}
@@ -68,13 +107,19 @@ export function CorrectionView() {
         >
           {STYLES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STYLE_LABELS[s]}
             </option>
           ))}
         </select>
         <button onClick={runManual}>▶️ Popraw</button>
         <button onClick={() => cancelSession()}>❌ Anuluj wszystko</button>
+        <button onClick={() => setShowOriginal(true)} disabled={!originalText}>
+          📄 Oryginał
+        </button>
+        <button onClick={() => getCurrentWindow().hide()}>🔽 Minimalizuj</button>
       </div>
+
+      {notice && <div className="notice">{notice}</div>}
 
       <textarea
         className="correction__input"
@@ -85,9 +130,22 @@ export function CorrectionView() {
 
       <div className="grid">
         {PROVIDERS.map((p) => (
-          <ProviderPanel key={p} provider={p} state={panels[p]} onUse={onUse} />
+          <ProviderPanel
+            key={p}
+            provider={p}
+            state={panels[p]}
+            originalText={originalText}
+            highlightDiffs={highlightDiffs}
+            onUse={onUse}
+            onCancel={(prov: Provider) => cancelProvider(prov)}
+            onReprocess={(prov: Provider, st: string) => reprocessProvider(prov, st)}
+          />
         ))}
       </div>
+
+      {showOriginal && (
+        <OriginalTextModal text={originalText} onClose={() => setShowOriginal(false)} />
+      )}
     </div>
   );
 }

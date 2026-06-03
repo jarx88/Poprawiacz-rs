@@ -33,7 +33,7 @@ pub fn build_client() -> Result<Client, reqwest::Error> {
 fn build_request(client: &Client, req: &CorrectionRequest) -> RequestBuilder {
     match req.provider {
         Provider::OpenAI => client
-            .post(openai::ENDPOINT)
+            .post(openai::endpoint(&req.model))
             .bearer_auth(&req.api_key)
             .json(&openai::build_body(req)),
         Provider::DeepSeek => client
@@ -45,10 +45,17 @@ fn build_request(client: &Client, req: &CorrectionRequest) -> RequestBuilder {
             .header("x-api-key", &req.api_key)
             .header("anthropic-version", anthropic::API_VERSION)
             .json(&anthropic::build_body(req)),
-        Provider::Gemini => client
-            .post(gemini::endpoint(&req.model))
-            .header("x-goog-api-key", &req.api_key)
-            .json(&gemini::build_body(req)),
+        Provider::Gemini => {
+            let url = if req.stream {
+                gemini::stream_endpoint(&req.model)
+            } else {
+                gemini::endpoint(&req.model)
+            };
+            client
+                .post(url)
+                .header("x-goog-api-key", &req.api_key)
+                .json(&gemini::build_body(req))
+        }
     }
 }
 
@@ -58,6 +65,16 @@ fn parse_body(provider: Provider, body: &Value) -> Result<String, AiError> {
         Provider::Anthropic => anthropic::parse_response(body),
         Provider::Gemini => gemini::parse_response(body),
         Provider::DeepSeek => deepseek::parse_response(body),
+    }
+}
+
+/// Dispatch one streamed SSE line to the provider's delta parser.
+fn parse_stream_line(provider: Provider, line: &str) -> Result<Option<String>, AiError> {
+    match provider {
+        Provider::OpenAI => openai::parse_sse_line(line),
+        Provider::Anthropic => anthropic::parse_sse_line(line),
+        Provider::Gemini => gemini::parse_sse_line(line),
+        Provider::DeepSeek => deepseek::parse_sse_line(line),
     }
 }
 
@@ -115,9 +132,9 @@ pub async fn correct(
     .await
 }
 
-/// Run an OpenAI streaming correction. `on_chunk` is called for every content
-/// delta; the full accumulated text is returned. No retry on a partially
-/// streamed response (a half-stream cannot be safely re-run).
+/// Run a streaming correction (any provider). `on_chunk` is called for every
+/// content delta; the full accumulated text is returned. No retry on a
+/// partially streamed response (a half-stream cannot be safely re-run).
 pub async fn correct_stream<F>(
     client: &Client,
     req: &CorrectionRequest,
@@ -127,7 +144,7 @@ pub async fn correct_stream<F>(
 where
     F: FnMut(&str),
 {
-    debug_assert!(req.provider == Provider::OpenAI && req.stream);
+    debug_assert!(req.stream);
     let provider = req.provider;
     let timeout = provider.timeout();
     let request = build_request(client, req).timeout(timeout);
@@ -165,7 +182,7 @@ where
         // Process complete lines; keep the trailing partial line in `buf`.
         while let Some(pos) = buf.find('\n') {
             let line: String = buf.drain(..=pos).collect();
-            if let Some(delta) = openai::parse_sse_line(&line)? {
+            if let Some(delta) = parse_stream_line(provider, &line)? {
                 full.push_str(&delta);
                 on_chunk(&delta);
             }
@@ -173,7 +190,7 @@ where
     }
     // flush any trailing line without newline
     if !buf.trim().is_empty() {
-        if let Some(delta) = openai::parse_sse_line(&buf)? {
+        if let Some(delta) = parse_stream_line(provider, &buf)? {
             full.push_str(&delta);
             on_chunk(&delta);
         }

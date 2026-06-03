@@ -22,7 +22,8 @@ export type PanelStatus =
   | "loading"
   | "streaming"
   | "done"
-  | "error";
+  | "error"
+  | "cancelled";
 
 export interface PanelState {
   status: PanelStatus;
@@ -66,3 +67,19 @@ export const STYLES = [
 ] as const;
 
 export type Style = (typeof STYLES)[number];
+
+/** Polish display labels for styles (parity with the Python dropdown). */
+export const STYLE_LABELS: Record<Style, string> = {
+  normal: "Normalny",
+  professional: "Profesjonalny",
+  translate_en: "Tłumacz na angielski",
+  translate_pl: "Tłumacz na polski",
+  change_meaning: "Zmień treść",
+  summary: "Podsumowanie",
+  prompt: "Prompt",
+};
+
+export interface CancelEvent {
+  session_id: number;
+  provider: Provider;
+}

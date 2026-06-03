@@ -16,6 +16,40 @@ pub fn endpoint(model: &str) -> String {
     format!("{BASE}/{model}:generateContent")
 }
 
+/// Streaming endpoint (Server-Sent Events).
+pub fn stream_endpoint(model: &str) -> String {
+    format!("{BASE}/{model}:streamGenerateContent?alt=sse")
+}
+
+/// Parse one SSE `data:` line of a streaming response into the incremental
+/// text of the first candidate.
+pub fn parse_sse_line(line: &str) -> Result<Option<String>, AiError> {
+    let line = line.trim();
+    let Some(payload) = line.strip_prefix("data:") else {
+        return Ok(None);
+    };
+    let payload = payload.trim();
+    if payload.is_empty() {
+        return Ok(None);
+    }
+    let v: Value = serde_json::from_str(payload).map_err(|e| AiError::Response {
+        provider: "gemini".into(),
+        status: None,
+        message: format!("bad SSE json: {e}"),
+    })?;
+    let text: String = v
+        .pointer("/candidates/0/content/parts")
+        .and_then(Value::as_array)
+        .map(|parts| {
+            parts
+                .iter()
+                .filter_map(|p| p.get("text").and_then(Value::as_str))
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    Ok(if text.is_empty() { None } else { Some(text) })
+}
+
 fn safety_settings() -> Value {
     json!([
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -83,7 +117,21 @@ mod tests {
             style: Style::Normal,
             text: "tekst do poprawy".into(),
             stream: false,
+            reasoning_effort: "high".into(),
+            verbosity: "medium".into(),
         }
+    }
+
+    #[test]
+    fn stream_endpoint_uses_sse() {
+        assert!(stream_endpoint("gemini-2.5-flash")
+            .ends_with("models/gemini-2.5-flash:streamGenerateContent?alt=sse"));
+    }
+
+    #[test]
+    fn sse_extracts_parts_text() {
+        let line = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"abc\"}]}}]}";
+        assert_eq!(parse_sse_line(line).unwrap(), Some("abc".to_string()));
     }
 
     #[test]

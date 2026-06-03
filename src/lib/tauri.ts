@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  CancelEvent,
   ChunkEvent,
   ErrorEvent,
   Provider,
@@ -8,15 +9,26 @@ import type {
   SessionStartedEvent,
 } from "../features/correction/types";
 
+export interface AiSettings {
+  reasoning_effort: string;
+  verbosity: string;
+}
+
 export interface SettingsView {
   models: Record<Provider, string | null>;
   default_style: string;
+  highlight_diffs: boolean;
+  autostartup: boolean;
+  ai_settings: AiSettings;
   keys_present: Record<string, boolean>;
 }
 
 export interface SaveSettingsPayload {
   models: Record<Provider, string | null>;
   default_style: string;
+  highlight_diffs: boolean;
+  autostartup: boolean;
+  ai_settings: AiSettings;
   api_keys: Partial<Record<Provider, string>>;
 }
 
@@ -27,7 +39,18 @@ export const startCorrection = (text: string, style: string): Promise<number> =>
 
 export const cancelSession = (): Promise<void> => invoke("cancel_session");
 
+export const cancelProvider = (provider: Provider): Promise<void> =>
+  invoke("cancel_provider", { provider });
+
+export const reprocessProvider = (
+  provider: Provider,
+  style: string,
+): Promise<void> => invoke("reprocess_provider", { provider, style });
+
 export const readClipboard = (): Promise<string> => invoke("read_clipboard");
+
+export const writeClipboard = (text: string): Promise<void> =>
+  invoke("write_clipboard", { text });
 
 export const pasteText = (text: string): Promise<void> =>
   invoke("paste_text", { text });
@@ -55,6 +78,12 @@ export const onResult = (cb: (e: ResultEvent) => void): Promise<UnlistenFn> =>
 
 export const onError = (cb: (e: ErrorEvent) => void): Promise<UnlistenFn> =>
   listen<ErrorEvent>("provider-error", (e) => cb(e.payload));
+
+export const onCancelled = (cb: (e: CancelEvent) => void): Promise<UnlistenFn> =>
+  listen<CancelEvent>("provider-cancelled", (e) => cb(e.payload));
+
+export const onRestarted = (cb: (e: CancelEvent) => void): Promise<UnlistenFn> =>
+  listen<CancelEvent>("provider-restarted", (e) => cb(e.payload));
 
 export const onHotkeyEmpty = (cb: () => void): Promise<UnlistenFn> =>
   listen("hotkey-empty", () => cb());

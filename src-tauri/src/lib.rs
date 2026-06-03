@@ -4,8 +4,9 @@
 
 mod modules;
 
-use modules::{ai, clipboard, config, hotkey, logging, tray, AppState};
+use modules::{ai, autostart, clipboard, config, hotkey, logging, tray, AppState};
 use poprawiacz_core::ai::build_client;
+use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,7 +25,7 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if event.state() == ShortcutState::Pressed
-                        && shortcut == &hotkey::correction_shortcut()
+                        && hotkey::is_correction_shortcut(shortcut)
                     {
                         hotkey::on_hotkey(app);
                     }
@@ -33,24 +34,30 @@ pub fn run() {
         )
         .manage(AppState::new(http))
         .setup(|app| {
-            use tauri_plugin_global_shortcut::GlobalShortcutExt;
-            if let Err(e) = app.global_shortcut().register(hotkey::correction_shortcut()) {
-                tracing::error!("failed to register global shortcut: {e}");
-            }
+            hotkey::register(app.handle());
             tray::build(app.handle())?;
+            // Apply persisted autostart preference at launch (Windows).
+            let autostart_on = config::load_settings(app.handle()).autostartup;
+            if let Err(e) = autostart::set_enabled(autostart_on) {
+                tracing::warn!("autostart sync failed: {e}");
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the window hides it to the tray instead of quitting
-            // (quit via the tray "Zakończ" item), matching the Python app.
+            // Closing the window cancels in-flight corrections and hides to the
+            // tray instead of quitting (quit via tray "Zakończ"), like Python.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<AppState>();
+                state.cancel.lock().expect("cancel mutex poisoned").cancel_all();
                 let _ = window.hide();
                 api.prevent_close();
             }
         })
         .invoke_handler(tauri::generate_handler![
             ai::start_correction,
+            ai::reprocess_provider,
             ai::cancel_session,
+            ai::cancel_provider,
             clipboard::read_clipboard,
             clipboard::write_clipboard,
             clipboard::paste_text,

@@ -59,10 +59,17 @@ impl Provider {
         }
     }
 
-    /// Only OpenAI streams in the MVP (Python streamed more, but we ship
-    /// streaming only where it's verified — see plan "DO NOT" rules).
+    /// All four providers stream (full parity with the Python app). Each
+    /// provider has its own verified SSE parser in its module.
     pub fn supports_streaming(self) -> bool {
-        matches!(self, Provider::OpenAI)
+        true
+    }
+
+    /// OpenAI reasoning models (`gpt-5*`, `o1*`) use the Responses API instead
+    /// of Chat Completions, with `reasoning.effort` / `text.verbosity`.
+    pub fn uses_responses_api(model: &str) -> bool {
+        let m = model.trim().to_ascii_lowercase();
+        m.starts_with("gpt-5") || m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4")
     }
 }
 
@@ -75,6 +82,10 @@ pub struct CorrectionRequest {
     pub style: Style,
     pub text: String,
     pub stream: bool,
+    /// OpenAI Responses API reasoning effort: minimal|low|medium|high.
+    pub reasoning_effort: String,
+    /// OpenAI Responses API output verbosity: low|medium|high.
+    pub verbosity: String,
 }
 
 impl CorrectionRequest {
@@ -104,11 +115,19 @@ mod tests {
     }
 
     #[test]
-    fn only_openai_streams_in_mvp() {
-        assert!(Provider::OpenAI.supports_streaming());
-        assert!(!Provider::Anthropic.supports_streaming());
-        assert!(!Provider::Gemini.supports_streaming());
-        assert!(!Provider::DeepSeek.supports_streaming());
+    fn all_providers_stream() {
+        for p in Provider::ALL {
+            assert!(p.supports_streaming(), "{} should stream", p.display());
+        }
+    }
+
+    #[test]
+    fn responses_api_routing() {
+        assert!(Provider::uses_responses_api("gpt-5-mini"));
+        assert!(Provider::uses_responses_api("o1-preview"));
+        assert!(Provider::uses_responses_api("o4-mini"));
+        assert!(!Provider::uses_responses_api("gpt-4o-mini"));
+        assert!(!Provider::uses_responses_api("claude-3-7-sonnet-latest"));
     }
 
     #[test]

@@ -34,6 +34,28 @@ pub fn parse_response(body: &Value) -> Result<String, AiError> {
         })
 }
 
+/// Parse one SSE line (`data: {choices[0].delta.content}`), OpenAI-compatible.
+pub fn parse_sse_line(line: &str) -> Result<Option<String>, AiError> {
+    let line = line.trim();
+    let Some(payload) = line.strip_prefix("data:") else {
+        return Ok(None);
+    };
+    let payload = payload.trim();
+    if payload.is_empty() || payload == "[DONE]" {
+        return Ok(None);
+    }
+    let v: Value = serde_json::from_str(payload).map_err(|e| AiError::Response {
+        provider: "deepseek".into(),
+        status: None,
+        message: format!("bad SSE json: {e}"),
+    })?;
+    Ok(v
+        .pointer("/choices/0/delta/content")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,7 +70,15 @@ mod tests {
             style: Style::Normal,
             text: "tekst".into(),
             stream: false,
+            reasoning_effort: "high".into(),
+            verbosity: "medium".into(),
         }
+    }
+
+    #[test]
+    fn sse_extracts_delta() {
+        let line = "data: {\"choices\":[{\"delta\":{\"content\":\"abc\"}}]}";
+        assert_eq!(parse_sse_line(line).unwrap(), Some("abc".to_string()));
     }
 
     #[test]

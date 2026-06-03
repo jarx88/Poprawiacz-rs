@@ -52,6 +52,22 @@ pub struct GeneralSettings {
     pub highlight_diffs: bool,
 }
 
+/// `[AI_SETTINGS]` — used by the OpenAI Responses API (gpt-5/o1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiSettings {
+    pub reasoning_effort: String,
+    pub verbosity: String,
+}
+
+impl Default for AiSettings {
+    fn default() -> Self {
+        Self {
+            reasoning_effort: "high".to_string(),
+            verbosity: "medium".to_string(),
+        }
+    }
+}
+
 /// Result of parsing a legacy `config.ini`.
 #[derive(Debug, Clone, Default)]
 pub struct LegacyConfig {
@@ -60,6 +76,7 @@ pub struct LegacyConfig {
     pub api_keys: HashMap<String, String>,
     pub models: ProviderModels,
     pub settings: GeneralSettings,
+    pub ai_settings: AiSettings,
 }
 
 impl LegacyConfig {
@@ -106,7 +123,14 @@ pub fn parse_ini(content: &str) -> Result<LegacyConfig, String> {
         highlight_diffs: get("settings", "highlightdiffs").as_deref().map(truthy).unwrap_or(false),
     };
 
-    Ok(LegacyConfig { api_keys, models, settings })
+    let ai_defaults = AiSettings::default();
+    let ai_settings = AiSettings {
+        reasoning_effort: get("ai_settings", "reasoningeffort")
+            .unwrap_or(ai_defaults.reasoning_effort),
+        verbosity: get("ai_settings", "verbosity").unwrap_or(ai_defaults.verbosity),
+    };
+
+    Ok(LegacyConfig { api_keys, models, settings, ai_settings })
 }
 
 #[cfg(test)]
@@ -158,5 +182,14 @@ mod tests {
         assert!(!c.settings.autostartup);
         assert_eq!(c.settings.default_style, "normal");
         assert!(c.api_keys.is_empty());
+        assert_eq!(c.ai_settings.reasoning_effort, "high");
+        assert_eq!(c.ai_settings.verbosity, "medium");
+    }
+
+    #[test]
+    fn parses_ai_settings() {
+        let c = parse_ini("[AI_SETTINGS]\nreasoningeffort = low\nverbosity = high\n").unwrap();
+        assert_eq!(c.ai_settings.reasoning_effort, "low");
+        assert_eq!(c.ai_settings.verbosity, "high");
     }
 }
