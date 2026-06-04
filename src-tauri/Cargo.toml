@@ -37,11 +37,10 @@ serde_json = "1"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "registry", "std", "ansi"] }
-# keyring 4 split into `keyring` (store selection) + `keyring-core` (Entry API).
-# Platform-native stores are pulled in per-target automatically; the OS store is
-# selected at runtime via `keyring::use_native_store` in `run()`.
-keyring = "4"
-keyring-core = "1"
+# Pinned to keyring 3: keyring 4 unconditionally pulls `db-keystore` -> the
+# `turso` SQLite engine (dozens of crates) as a fallback store we never use,
+# which blows up release build time under fat LTO. v3 is lean and maintained.
+keyring = { version = "3", default-features = false, features = ["windows-native", "apple-native", "linux-native"] }
 enigo = "0.6"
 
 [target.'cfg(windows)'.dependencies]

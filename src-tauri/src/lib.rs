@@ -13,14 +13,6 @@ use tauri_plugin_global_shortcut::ShortcutState;
 pub fn run() {
     logging::init();
 
-    // keyring 4 requires explicitly selecting the OS-native credential store
-    // before any `Entry` use: Keychain (macOS), Credential Manager (Windows),
-    // keyutils (Linux — matches the previous `linux-native` backend; `false`
-    // keeps keyutils rather than secret-service).
-    if let Err(e) = keyring::use_native_store(false) {
-        tracing::warn!("keyring native store init failed: {e}");
-    }
-
     let http = build_client().expect("failed to build HTTP client");
 
     tauri::Builder::default()
