@@ -26,7 +26,14 @@ const KEY_HINTS: Record<Provider, string> = {
   deepseek: "platform.deepseek.com/api_keys",
 };
 
-const EFFORTS = ["minimal", "low", "medium", "high"];
+const LEVELS = ["off", "low", "medium", "high", "max"] as const;
+const LEVEL_LABELS: Record<string, string> = {
+  off: "Off (najszybciej)",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  max: "Max",
+};
 const VERBOSITIES = ["low", "medium", "high"];
 
 export default function SettingsDialog({ onClose }: Props) {
@@ -35,7 +42,10 @@ export default function SettingsDialog({ onClose }: Props) {
   const [highlightDiffs, setHighlightDiffs] = useState(false);
   const [autostartup, setAutostartup] = useState(false);
   const [clipboardDelayMs, setClipboardDelayMs] = useState(400);
-  const [ai, setAi] = useState<AiSettings>({ reasoning_effort: "high", verbosity: "medium" });
+  const [ai, setAi] = useState<AiSettings>({
+    verbosity: "medium",
+    reasoning_levels: { openai: "off", anthropic: "off", gemini: "off", deepseek: "off" },
+  });
   const [keysPresent, setKeysPresent] = useState<Record<string, boolean>>({});
   const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -140,20 +150,7 @@ export default function SettingsDialog({ onClose }: Props) {
         </label>
 
         <fieldset className="provider-settings">
-          <legend>Modele rozumujące (GPT-5 / o1) — Responses API</legend>
-          <label className="field">
-            Reasoning effort
-            <select
-              value={ai.reasoning_effort}
-              onChange={(e) => setAi((a) => ({ ...a, reasoning_effort: e.target.value }))}
-            >
-              {EFFORTS.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </label>
+          <legend>OpenAI — długość odpowiedzi (Responses API)</legend>
           <label className="field">
             Verbosity
             <select
@@ -190,6 +187,25 @@ export default function SettingsDialog({ onClose }: Props) {
               />
               <span className="field__hint">🔗 {KEY_HINTS[p]}</span>
               {errors[`key.${p}`] && <span className="field__err">{errors[`key.${p}`]}</span>}
+            </label>
+            <label className="field">
+              Moc rozumowania
+              <select
+                value={ai.reasoning_levels[p]}
+                onChange={(e) =>
+                  setAi((a) => ({
+                    ...a,
+                    reasoning_levels: { ...a.reasoning_levels, [p]: e.target.value },
+                  }))
+                }
+              >
+                {LEVELS.map((v) => (
+                  <option key={v} value={v}>
+                    {LEVEL_LABELS[v]}
+                  </option>
+                ))}
+              </select>
+              <span className="field__hint">Off = bez myślenia, najszybciej (zalecane do korekty)</span>
             </label>
           </fieldset>
         ))}

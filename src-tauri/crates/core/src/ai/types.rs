@@ -78,6 +78,44 @@ impl Provider {
     }
 }
 
+/// Unified reasoning/thinking strength, exposed in Settings per provider and
+/// mapped to each provider's native API parameter in its builder module.
+/// `Off` = minimal (OpenAI), thinking disabled (DeepSeek), no extended thinking
+/// (Anthropic), budget 0 / minimal level (Gemini).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningLevel {
+    #[default]
+    Off,
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+impl ReasoningLevel {
+    /// Lenient parse from a config/UI string; unknown or empty -> `Off`.
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "low" => Self::Low,
+            "medium" | "med" => Self::Medium,
+            "high" => Self::High,
+            "max" => Self::Max,
+            _ => Self::Off,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Max => "max",
+        }
+    }
+}
+
 /// Everything needed to issue one correction call to one provider.
 #[derive(Debug, Clone)]
 pub struct CorrectionRequest {
@@ -87,8 +125,8 @@ pub struct CorrectionRequest {
     pub style: Style,
     pub text: String,
     pub stream: bool,
-    /// OpenAI Responses API reasoning effort: minimal|low|medium|high.
-    pub reasoning_effort: String,
+    /// Unified reasoning strength for this provider; mapped natively per module.
+    pub reasoning_level: ReasoningLevel,
     /// OpenAI Responses API output verbosity: low|medium|high.
     pub verbosity: String,
 }

@@ -29,7 +29,7 @@ fn spawn_provider(
 ) {
     let settings = config::load_settings(app);
     let model = settings.models.resolved(provider);
-    let reasoning_effort = settings.ai_settings.reasoning_effort.clone();
+    let reasoning_level = settings.ai_settings.reasoning_levels.for_provider(provider);
     let verbosity = settings.ai_settings.verbosity.clone();
     let key = config::get_api_key(provider);
     let http = app.state::<AppState>().http.clone();
@@ -57,7 +57,7 @@ fn spawn_provider(
                 style,
                 text,
                 stream,
-                reasoning_effort,
+                reasoning_level,
                 verbosity,
             };
 

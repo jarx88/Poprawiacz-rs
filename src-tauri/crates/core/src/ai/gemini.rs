@@ -5,7 +5,7 @@
 use serde_json::{json, Value};
 
 use super::error::AiError;
-use super::types::CorrectionRequest;
+use super::types::{CorrectionRequest, ReasoningLevel};
 use crate::prompts::instruction_prompt;
 
 pub const BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -59,14 +59,44 @@ fn safety_settings() -> Value {
     ])
 }
 
-/// "Thinking" budget (parity with Python): disabled (0) for Flash/Lite, 128 for
-/// Pro (which cannot fully disable it). Disabling thinking is what makes Gemini
-/// 2.5 respond quickly instead of pausing to "think".
-fn thinking_budget(model: &str) -> i32 {
-    if model.to_ascii_lowercase().contains("pro") {
-        128
+/// Build the `thinkingConfig` for the model's generation. Gemini 2.5 uses an
+/// integer `thinkingBudget` (0 = off; Pro has a 128 floor; -1 = dynamic), while
+/// Gemini 3.x replaced it with an enum `thinkingLevel` and rejects the legacy
+/// budget field. Off keeps quick edits fast (the whole point for this app).
+fn thinking_config(level: ReasoningLevel, model: &str) -> Value {
+    let m = model.to_ascii_lowercase();
+    let is_pro = m.contains("pro");
+
+    if m.contains("gemini-3") {
+        let lvl = match level {
+            // Gemini 3 Pro has no "minimal" tier; fall back to "low".
+            ReasoningLevel::Off => {
+                if is_pro {
+                    "low"
+                } else {
+                    "minimal"
+                }
+            }
+            ReasoningLevel::Low => "low",
+            ReasoningLevel::Medium => "medium",
+            ReasoningLevel::High | ReasoningLevel::Max => "high",
+        };
+        json!({ "thinkingLevel": lvl })
     } else {
-        0
+        let budget: i32 = match level {
+            ReasoningLevel::Off => {
+                if is_pro {
+                    128
+                } else {
+                    0
+                }
+            }
+            ReasoningLevel::Low => 512,
+            ReasoningLevel::Medium => 2048,
+            ReasoningLevel::High => 8192,
+            ReasoningLevel::Max => -1,
+        };
+        json!({ "thinkingBudget": budget })
     }
 }
 
@@ -85,7 +115,7 @@ pub fn build_body(req: &CorrectionRequest) -> Value {
             "temperature": 0.7,
             "topP": 0.9,
             "topK": 32,
-            "thinkingConfig": { "thinkingBudget": thinking_budget(&req.model) },
+            "thinkingConfig": thinking_config(req.reasoning_level, &req.model),
         },
         "safetySettings": safety_settings(),
     })
@@ -118,7 +148,7 @@ pub fn parse_response(body: &Value) -> Result<String, AiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ai::types::Provider;
+    use crate::ai::types::{Provider, ReasoningLevel};
     use crate::prompts::Style;
 
     fn req() -> CorrectionRequest {
@@ -129,7 +159,7 @@ mod tests {
             style: Style::Normal,
             text: "tekst do poprawy".into(),
             stream: false,
-            reasoning_effort: "high".into(),
+            reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
         }
     }
@@ -164,12 +194,33 @@ mod tests {
     }
 
     #[test]
-    fn thinking_disabled_for_flash_enabled_for_pro() {
-        assert_eq!(thinking_budget("gemini-2.5-flash"), 0);
-        assert_eq!(thinking_budget("gemini-2.5-flash-lite"), 0);
-        assert_eq!(thinking_budget("gemini-2.5-pro"), 128);
+    fn v25_off_uses_budget_zero_flash_floor_pro() {
+        let off = ReasoningLevel::Off;
+        assert_eq!(thinking_config(off, "gemini-2.5-flash")["thinkingBudget"], 0);
+        assert_eq!(thinking_config(off, "gemini-2.5-flash-lite")["thinkingBudget"], 0);
+        // Pro cannot fully disable thinking -> 128 floor.
+        assert_eq!(thinking_config(off, "gemini-2.5-pro")["thinkingBudget"], 128);
         let b = build_body(&req());
         assert_eq!(b["generationConfig"]["thinkingConfig"]["thinkingBudget"], 0);
+    }
+
+    #[test]
+    fn v25_levels_map_to_budgets() {
+        assert_eq!(thinking_config(ReasoningLevel::Low, "gemini-2.5-flash")["thinkingBudget"], 512);
+        assert_eq!(thinking_config(ReasoningLevel::Medium, "gemini-2.5-flash")["thinkingBudget"], 2048);
+        assert_eq!(thinking_config(ReasoningLevel::High, "gemini-2.5-flash")["thinkingBudget"], 8192);
+        // Max -> dynamic.
+        assert_eq!(thinking_config(ReasoningLevel::Max, "gemini-2.5-flash")["thinkingBudget"], -1);
+    }
+
+    #[test]
+    fn gemini3_uses_thinking_level_not_budget() {
+        let c = thinking_config(ReasoningLevel::Off, "gemini-3.5-flash");
+        assert_eq!(c["thinkingLevel"], "minimal");
+        assert!(c.get("thinkingBudget").is_none());
+        // Gemini 3 Pro has no "minimal" -> falls back to "low".
+        assert_eq!(thinking_config(ReasoningLevel::Off, "gemini-3-pro")["thinkingLevel"], "low");
+        assert_eq!(thinking_config(ReasoningLevel::High, "gemini-3.5-flash")["thinkingLevel"], "high");
     }
 
     #[test]

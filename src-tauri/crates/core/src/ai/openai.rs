@@ -5,7 +5,7 @@
 use serde_json::{json, Value};
 
 use super::error::AiError;
-use super::types::{CorrectionRequest, Provider};
+use super::types::{CorrectionRequest, Provider, ReasoningLevel};
 
 pub const CHAT_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
 pub const RESPONSES_ENDPOINT: &str = "https://api.openai.com/v1/responses";
@@ -25,6 +25,18 @@ pub fn endpoint(model: &str) -> &'static str {
     }
 }
 
+/// Map the unified level to the Responses API `reasoning.effort`. OpenAI has no
+/// "max" tier, so High and Max both map to "high"; Off uses "minimal" (gpt-5
+/// cannot fully disable reasoning).
+fn reasoning_effort(level: ReasoningLevel) -> &'static str {
+    match level {
+        ReasoningLevel::Off => "minimal",
+        ReasoningLevel::Low => "low",
+        ReasoningLevel::Medium => "medium",
+        ReasoningLevel::High | ReasoningLevel::Max => "high",
+    }
+}
+
 pub fn build_body(req: &CorrectionRequest) -> Value {
     if is_responses(req) {
         // Responses API: single flattened input + reasoning/verbosity.
@@ -37,7 +49,7 @@ pub fn build_body(req: &CorrectionRequest) -> Value {
             "model": req.model,
             "input": input,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
-            "reasoning": { "effort": req.reasoning_effort },
+            "reasoning": { "effort": reasoning_effort(req.reasoning_level) },
             "text": { "verbosity": req.verbosity },
             "stream": req.stream,
         })
@@ -140,7 +152,7 @@ mod tests {
             style: Style::Normal,
             text: "helo".into(),
             stream,
-            reasoning_effort: "high".into(),
+            reasoning_level: ReasoningLevel::High,
             verbosity: "medium".into(),
         }
     }

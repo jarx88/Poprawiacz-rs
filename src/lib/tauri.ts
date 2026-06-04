@@ -9,9 +9,18 @@ import type {
   SessionStartedEvent,
 } from "../features/correction/types";
 
+export type ReasoningLevel = "off" | "low" | "medium" | "high" | "max";
+
+export interface ReasoningLevels {
+  openai: ReasoningLevel;
+  anthropic: ReasoningLevel;
+  gemini: ReasoningLevel;
+  deepseek: ReasoningLevel;
+}
+
 export interface AiSettings {
-  reasoning_effort: string;
   verbosity: string;
+  reasoning_levels: ReasoningLevels;
 }
 
 export interface SettingsView {

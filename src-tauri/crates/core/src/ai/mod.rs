@@ -13,7 +13,8 @@ pub mod types;
 
 pub use error::AiError;
 pub use types::{
-    CorrectionRequest, Provider, CONNECT_TIMEOUT, DEEPSEEK_TIMEOUT, MAX_RETRIES, STANDARD_TIMEOUT,
+    CorrectionRequest, Provider, ReasoningLevel, CONNECT_TIMEOUT, DEEPSEEK_TIMEOUT, MAX_RETRIES,
+    STANDARD_TIMEOUT,
 };
 
 use futures_util::StreamExt;

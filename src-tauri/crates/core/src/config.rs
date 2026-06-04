@@ -9,7 +9,7 @@ use configparser::ini::Ini;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::ai::Provider;
+use crate::ai::{Provider, ReasoningLevel};
 
 /// Default model per provider (Python `DEFAULT_MODELS`).
 pub fn default_model(provider: Provider) -> &'static str {
@@ -68,20 +68,46 @@ impl Default for GeneralSettings {
     }
 }
 
-/// `[AI_SETTINGS]` — used by the OpenAI Responses API (gpt-5/o1).
+/// Unified per-provider reasoning strength. All default to `Off` — this is a
+/// text-correction tool, and provider docs agree that this task class does not
+/// need reasoning; the user raises a provider's level in Settings if they want.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ReasoningLevels {
+    #[serde(default)]
+    pub openai: ReasoningLevel,
+    #[serde(default)]
+    pub anthropic: ReasoningLevel,
+    #[serde(default)]
+    pub gemini: ReasoningLevel,
+    #[serde(default)]
+    pub deepseek: ReasoningLevel,
+}
+
+impl ReasoningLevels {
+    pub fn for_provider(self, p: Provider) -> ReasoningLevel {
+        match p {
+            Provider::OpenAI => self.openai,
+            Provider::Anthropic => self.anthropic,
+            Provider::Gemini => self.gemini,
+            Provider::DeepSeek => self.deepseek,
+        }
+    }
+}
+
+/// `[AI_SETTINGS]` — output verbosity (OpenAI Responses) plus the per-provider
+/// reasoning strength.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AiSettings {
-    pub reasoning_effort: String,
     pub verbosity: String,
+    #[serde(default)]
+    pub reasoning_levels: ReasoningLevels,
 }
 
 impl Default for AiSettings {
     fn default() -> Self {
         Self {
-            // "low" keeps reasoning models (gpt-5/o-series) responsive; the user
-            // can raise it in Settings.
-            reasoning_effort: "low".to_string(),
             verbosity: "medium".to_string(),
+            reasoning_levels: ReasoningLevels::default(),
         }
     }
 }
@@ -145,10 +171,18 @@ pub fn parse_ini(content: &str) -> Result<LegacyConfig, String> {
     };
 
     let ai_defaults = AiSettings::default();
+    let level = |key: &str| get("reasoning_levels", key).map(|v| ReasoningLevel::parse(&v));
+    // Carry a legacy [ai_settings] reasoningeffort over as the OpenAI level.
+    let legacy_openai = get("ai_settings", "reasoningeffort").map(|v| ReasoningLevel::parse(&v));
+    let reasoning_levels = ReasoningLevels {
+        openai: level("openai").or(legacy_openai).unwrap_or_default(),
+        anthropic: level("anthropic").unwrap_or_default(),
+        gemini: level("gemini").unwrap_or_default(),
+        deepseek: level("deepseek").unwrap_or_default(),
+    };
     let ai_settings = AiSettings {
-        reasoning_effort: get("ai_settings", "reasoningeffort")
-            .unwrap_or(ai_defaults.reasoning_effort),
         verbosity: get("ai_settings", "verbosity").unwrap_or(ai_defaults.verbosity),
+        reasoning_levels,
     };
 
     Ok(LegacyConfig { api_keys, models, settings, ai_settings })
@@ -204,7 +238,8 @@ mod tests {
         assert_eq!(c.settings.default_style, "normal");
         assert_eq!(c.settings.clipboard_delay_ms, 400);
         assert!(c.api_keys.is_empty());
-        assert_eq!(c.ai_settings.reasoning_effort, "low");
+        assert_eq!(c.ai_settings.reasoning_levels, ReasoningLevels::default());
+        assert_eq!(c.ai_settings.reasoning_levels.openai, ReasoningLevel::Off);
         assert_eq!(c.ai_settings.verbosity, "medium");
     }
 
@@ -223,7 +258,18 @@ mod tests {
     #[test]
     fn parses_ai_settings() {
         let c = parse_ini("[AI_SETTINGS]\nreasoningeffort = low\nverbosity = high\n").unwrap();
-        assert_eq!(c.ai_settings.reasoning_effort, "low");
+        // Legacy reasoningeffort carries over as the OpenAI reasoning level.
+        assert_eq!(c.ai_settings.reasoning_levels.openai, ReasoningLevel::Low);
         assert_eq!(c.ai_settings.verbosity, "high");
+    }
+
+    #[test]
+    fn parses_per_provider_reasoning_levels() {
+        let c = parse_ini("[REASONING_LEVELS]\nopenai = high\ndeepseek = max\ngemini = off\n").unwrap();
+        assert_eq!(c.ai_settings.reasoning_levels.openai, ReasoningLevel::High);
+        assert_eq!(c.ai_settings.reasoning_levels.deepseek, ReasoningLevel::Max);
+        assert_eq!(c.ai_settings.reasoning_levels.gemini, ReasoningLevel::Off);
+        // Unspecified provider defaults to Off.
+        assert_eq!(c.ai_settings.reasoning_levels.anthropic, ReasoningLevel::Off);
     }
 }

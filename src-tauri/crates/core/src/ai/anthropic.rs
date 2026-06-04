@@ -4,14 +4,37 @@
 use serde_json::{json, Value};
 
 use super::error::AiError;
-use super::types::CorrectionRequest;
+use super::types::{CorrectionRequest, ReasoningLevel};
 
 pub const ENDPOINT: &str = "https://api.anthropic.com/v1/messages";
 pub const API_VERSION: &str = "2023-06-01";
+/// Token allowance for the actual answer (excludes the thinking budget).
 pub const MAX_TOKENS: u32 = 2048;
 
+/// Extended thinking exists on Claude 3.7 and all Claude 4.x. For other models
+/// (e.g. claude-3-5-*) we omit the `thinking` block entirely.
+fn supports_thinking(model: &str) -> bool {
+    let m = model.to_ascii_lowercase();
+    m.contains("claude-3-7")
+        || m.contains("sonnet-4")
+        || m.contains("opus-4")
+        || m.contains("haiku-4")
+}
+
+/// Map the unified level to a `budget_tokens` value (`None` = no thinking).
+/// Anthropic requires `budget_tokens >= 1024` and `< max_tokens`.
+fn thinking_budget(level: ReasoningLevel) -> Option<u32> {
+    match level {
+        ReasoningLevel::Off => None,
+        ReasoningLevel::Low => Some(1024),
+        ReasoningLevel::Medium => Some(4096),
+        ReasoningLevel::High => Some(10_000),
+        ReasoningLevel::Max => Some(20_000),
+    }
+}
+
 pub fn build_body(req: &CorrectionRequest) -> Value {
-    json!({
+    let mut body = json!({
         "model": req.model,
         "max_tokens": MAX_TOKENS,
         "system": req.system_prompt(),
@@ -19,7 +42,18 @@ pub fn build_body(req: &CorrectionRequest) -> Value {
             {"role": "user", "content": req.user_message()},
         ],
         "stream": req.stream,
-    })
+    });
+
+    if supports_thinking(&req.model) {
+        if let Some(budget) = thinking_budget(req.reasoning_level) {
+            // max_tokens must exceed budget_tokens, and the budget is consumed
+            // on top of the answer — so raise the ceiling to fit both.
+            body["max_tokens"] = json!(budget + MAX_TOKENS);
+            body["thinking"] = json!({ "type": "enabled", "budget_tokens": budget });
+        }
+    }
+
+    body
 }
 
 /// Parse one SSE line. Anthropic emits `event:`/`data:` pairs; we read the
@@ -71,7 +105,7 @@ pub fn parse_response(body: &Value) -> Result<String, AiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ai::types::Provider;
+    use crate::ai::types::{Provider, ReasoningLevel};
     use crate::prompts::Style;
 
     fn req() -> CorrectionRequest {
@@ -82,9 +116,36 @@ mod tests {
             style: Style::Normal,
             text: "tekst".into(),
             stream: false,
-            reasoning_effort: "high".into(),
+            reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
         }
+    }
+
+    #[test]
+    fn off_has_no_thinking_block() {
+        let b = build_body(&req());
+        assert!(b.get("thinking").is_none());
+        assert_eq!(b["max_tokens"], MAX_TOKENS);
+    }
+
+    #[test]
+    fn thinking_enabled_raises_max_tokens() {
+        let mut r = req();
+        r.reasoning_level = ReasoningLevel::Low;
+        let b = build_body(&r);
+        assert_eq!(b["thinking"]["type"], "enabled");
+        assert_eq!(b["thinking"]["budget_tokens"], 1024);
+        // budget must stay below max_tokens.
+        assert_eq!(b["max_tokens"], 1024 + MAX_TOKENS);
+    }
+
+    #[test]
+    fn non_thinking_model_omits_block() {
+        let mut r = req();
+        r.model = "claude-3-5-haiku-latest".into();
+        r.reasoning_level = ReasoningLevel::High;
+        let b = build_body(&r);
+        assert!(b.get("thinking").is_none());
     }
 
     #[test]
