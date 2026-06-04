@@ -25,15 +25,42 @@ pub fn endpoint(model: &str) -> &'static str {
     }
 }
 
-/// Map the unified level to the Responses API `reasoning.effort`. OpenAI has no
-/// "max" tier, so High and Max both map to "high"; Off uses "minimal" (gpt-5
-/// cannot fully disable reasoning).
-fn reasoning_effort(level: ReasoningLevel) -> &'static str {
+/// gpt-5.1 and later (`gpt-5.x`) replaced `minimal` with `none` for the bottom
+/// of the scale and added `xhigh` at the top. The original gpt-5 family and the
+/// o-series use the older scale; o-series has no `minimal` at all.
+fn is_new_effort_scale(model: &str) -> bool {
+    model.starts_with("gpt-5.")
+}
+
+/// Map the unified level to a Responses API `reasoning.effort` value that the
+/// given model actually accepts. `low`/`medium`/`high` are universal; only the
+/// extremes (`none`/`minimal`/`xhigh`) are model-dependent, so we pick those
+/// carefully and fall back to the safe `low`/`high` for anything unknown.
+fn reasoning_effort(level: ReasoningLevel, model: &str) -> &'static str {
+    let m = model.trim().to_ascii_lowercase();
     match level {
-        ReasoningLevel::Off => "minimal",
         ReasoningLevel::Low => "low",
         ReasoningLevel::Medium => "medium",
-        ReasoningLevel::High | ReasoningLevel::Max => "high",
+        ReasoningLevel::High => "high",
+        ReasoningLevel::Off => {
+            if is_new_effort_scale(&m) {
+                "none"
+            } else if m.starts_with("gpt-5") {
+                // base gpt-5 / gpt-5-mini / gpt-5-nano accept "minimal"
+                "minimal"
+            } else {
+                // o-series (no "minimal") and unknowns: "low" is the safe floor
+                "low"
+            }
+        }
+        ReasoningLevel::Max => {
+            // "xhigh" exists only on newer full models; mini/nano cap at "high".
+            if is_new_effort_scale(&m) && !m.contains("mini") && !m.contains("nano") {
+                "xhigh"
+            } else {
+                "high"
+            }
+        }
     }
 }
 
@@ -49,7 +76,7 @@ pub fn build_body(req: &CorrectionRequest) -> Value {
             "model": req.model,
             "input": input,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
-            "reasoning": { "effort": reasoning_effort(req.reasoning_level) },
+            "reasoning": { "effort": reasoning_effort(req.reasoning_level, &req.model) },
             "text": { "verbosity": req.verbosity },
             "stream": req.stream,
         })
@@ -175,6 +202,33 @@ mod tests {
         assert_eq!(b["max_output_tokens"], MAX_OUTPUT_TOKENS);
         assert_eq!(endpoint("gpt-5-mini"), RESPONSES_ENDPOINT);
         assert_eq!(endpoint("o1-mini"), RESPONSES_ENDPOINT);
+    }
+
+    #[test]
+    fn effort_scale_is_model_aware() {
+        use ReasoningLevel::*;
+        // gpt-5.x (new scale): none at the bottom, xhigh at the top.
+        assert_eq!(reasoning_effort(Off, "gpt-5.5"), "none");
+        assert_eq!(reasoning_effort(Max, "gpt-5.5"), "xhigh");
+        // mini/nano on the new scale cap at high (no xhigh).
+        assert_eq!(reasoning_effort(Max, "gpt-5.4-mini"), "high");
+        assert_eq!(reasoning_effort(Off, "gpt-5.4-mini"), "none");
+        // base gpt-5 family uses minimal.
+        assert_eq!(reasoning_effort(Off, "gpt-5-mini"), "minimal");
+        assert_eq!(reasoning_effort(Max, "gpt-5-mini"), "high");
+        // o-series / unknown: safe low/high floor (o-series has no "minimal").
+        assert_eq!(reasoning_effort(Off, "o4-mini"), "low");
+        assert_eq!(reasoning_effort(Max, "o4-mini"), "high");
+        // universal middle values never change.
+        assert_eq!(reasoning_effort(Medium, "gpt-5.5"), "medium");
+    }
+
+    #[test]
+    fn gpt55_off_emits_none_not_minimal() {
+        let mut r = req("gpt-5.5", false);
+        r.reasoning_level = ReasoningLevel::Off;
+        let b = build_body(&r);
+        assert_eq!(b["reasoning"]["effort"], "none");
     }
 
     #[test]
