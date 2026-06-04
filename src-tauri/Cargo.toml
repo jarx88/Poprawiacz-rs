@@ -28,7 +28,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
 tauri-plugin-window-state = "2"
 
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 futures-util = "0.3"
@@ -37,11 +37,15 @@ serde_json = "1"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "registry", "std", "ansi"] }
-keyring = { version = "3", default-features = false, features = ["windows-native", "apple-native", "linux-native"] }
-enigo = "0.2"
+# keyring 4 split into `keyring` (store selection) + `keyring-core` (Entry API).
+# Platform-native stores are pulled in per-target automatically; the OS store is
+# selected at runtime via `keyring::use_native_store` in `run()`.
+keyring = "4"
+keyring-core = "1"
+enigo = "0.6"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.52"
+winreg = "0.56"
 
 # Release profile tuned for small, fast binaries (Terax-inspired).
 [profile.release]

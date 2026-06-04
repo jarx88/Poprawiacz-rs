@@ -83,8 +83,8 @@ pub fn persist_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), S
 
 // --- Keychain (secrets) -----------------------------------------------------
 
-fn entry(provider: Provider) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, provider.key()).map_err(|e| e.to_string())
+fn entry(provider: Provider) -> Result<keyring_core::Entry, String> {
+    keyring_core::Entry::new(KEYCHAIN_SERVICE, provider.key()).map_err(|e| e.to_string())
 }
 
 pub fn get_api_key(provider: Provider) -> Option<String> {

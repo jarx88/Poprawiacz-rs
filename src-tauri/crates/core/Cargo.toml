@@ -10,7 +10,7 @@ name = "poprawiacz_core"
 path = "src/lib.rs"
 
 [dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 futures-util = "0.3"
@@ -18,7 +18,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 configparser = "3"
-dirs = "5"
+dirs = "6"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [dev-dependencies]
