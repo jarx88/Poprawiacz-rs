@@ -44,7 +44,7 @@ impl Style {
     }
 }
 
-const NORMAL: &str = "Correct the following text, preserving its formatting (including all enters and paragraphs). Return ONLY the corrected text, without any additional headers, separators, or comments.";
+const NORMAL: &str = "Improve the following text: fix all errors AND rewrite awkward, wordy, or unnatural sentences so the result reads like fluent Polish written by a skilled native speaker. Do not be conservative — restructure sentences freely when it improves flow (e.g. replace clunky phrases like \"jest taka sytuacja, że\" with natural wording, drop redundant words, fix anglicisms). Preserve the meaning and the formatting (including all enters and paragraphs). Return ONLY the improved text, without any additional headers, separators, or comments.";
 
 const PROFESSIONAL: &str = "Rewrite the following text into a professional, formal register. Preserve the original meaning and formatting (paragraphs, lists, line breaks). Always adjust tone to business/professional Polish: - remove colloquialisms, emojis, exclamation-heavy rhetoric - prefer neutral/impersonal or formal address (Państwo / trzecia osoba) - replace casual verbs and particles with precise, formal equivalents - standardize punctuation and capitalization - ensure clear, concise, and courteous phrasing IMPORTANT: Do not return the input unchanged; refine it to a consistently formal style.";
 
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn instruction_prompt_is_distinct_per_style() {
-        assert!(instruction_prompt(Style::Normal).starts_with("Correct the following text"));
+        assert!(instruction_prompt(Style::Normal).starts_with("Improve the following text"));
         assert!(instruction_prompt(Style::TranslateEn).contains("INTO ENGLISH"));
         assert!(instruction_prompt(Style::TranslatePl).contains("INTO POLISH"));
         assert!(instruction_prompt(Style::Summary).starts_with("Create a concise summary"));
@@ -132,7 +132,7 @@ mod tests {
     fn user_message_wraps_text_in_separators() {
         let msg = user_message(Style::Normal, "Helo wrld");
         assert!(msg.ends_with("\n\n---\nHelo wrld\n---"));
-        assert!(msg.starts_with("Correct the following text"));
+        assert!(msg.starts_with("Improve the following text"));
     }
 
     #[test]

@@ -151,8 +151,9 @@ pub async fn correct(
 }
 
 /// Run a streaming correction (any provider). `on_chunk` is called for every
-/// content delta; the full accumulated text is returned. No retry on a
-/// partially streamed response (a half-stream cannot be safely re-run).
+/// content delta; the full accumulated text is returned. Retries (like the
+/// non-streaming path) as long as NO chunk has been emitted yet — a 503/429
+/// before the first delta is safe to re-run; a half-stream is not.
 pub async fn correct_stream<F>(
     client: &Client,
     req: &CorrectionRequest,
@@ -162,6 +163,33 @@ pub async fn correct_stream<F>(
 where
     F: FnMut(&str),
 {
+    let mut attempt = 0u32;
+    loop {
+        let mut emitted = false;
+        let result = stream_once(client, req, cancel, &mut |delta| {
+            emitted = true;
+            on_chunk(delta);
+        })
+        .await;
+        match result {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                if emitted || attempt >= MAX_RETRIES || !e.is_retryable() {
+                    return Err(e);
+                }
+                attempt += 1;
+                tokio::time::sleep(RETRY_BACKOFF * 2u32.saturating_pow(attempt - 1)).await;
+            }
+        }
+    }
+}
+
+async fn stream_once(
+    client: &Client,
+    req: &CorrectionRequest,
+    cancel: &CancellationToken,
+    on_chunk: &mut dyn FnMut(&str),
+) -> Result<String, AiError> {
     debug_assert!(req.stream);
     let provider = req.provider;
     let timeout = provider.timeout();

@@ -181,6 +181,7 @@ textarea:focus {
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* style tabs */
@@ -189,6 +190,13 @@ textarea:focus {
   gap: 4px;
   overflow-x: auto;
   min-width: 0;
+  flex: 1 1 auto;
+  scrollbar-width: none;
+  /* fade-out edge signals there are more tabs to scroll */
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .tab {
   background: transparent;

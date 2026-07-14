@@ -29,7 +29,9 @@ where
                 }
                 attempt += 1;
                 if !backoff.is_zero() {
-                    tokio::time::sleep(backoff).await;
+                    // Exponential: backoff, 2x, 4x… — 503 "high demand" spikes
+                    // rarely clear within a fixed 800ms.
+                    tokio::time::sleep(backoff * 2u32.saturating_pow(attempt - 1)).await;
                 }
             }
         }

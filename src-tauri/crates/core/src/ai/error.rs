@@ -33,8 +33,8 @@ impl AiError {
         match self {
             AiError::Cancelled { .. } => false,
             AiError::Response { status, .. } => {
-                // retry only on server-side (5xx) or unknown status
-                status.map(|s| s >= 500).unwrap_or(true)
+                // retry on server-side (5xx), rate-limit (429) or unknown status
+                status.map(|s| s >= 500 || s == 429).unwrap_or(true)
             }
             AiError::Connection { .. } | AiError::Timeout { .. } => true,
         }
