@@ -18,7 +18,7 @@ import {
 } from "../../lib/tauri";
 import { OriginalTextModal } from "./OriginalTextModal";
 import { ProviderPanel } from "./ProviderPanel";
-import { completedCount, useCorrectionStore } from "./store";
+import { useCorrectionStore } from "./store";
 import { PROVIDERS, Provider, STYLES, STYLE_LABELS, Style } from "./types";
 
 export function CorrectionView() {
@@ -93,8 +93,6 @@ export function CorrectionView() {
     }
   };
 
-  const done = completedCount(panels);
-
   // Optimistic cancel: flip the panel(s) immediately, then tell the backend to
   // abort the request (don't wait for the round-trip event).
   const cancelOne = (prov: Provider) => {
@@ -109,25 +107,39 @@ export function CorrectionView() {
   return (
     <div className="correction">
       <div className="correction__bar">
-        <span className="correction__session">📝 Sesja: {sessionId}</span>
-        <span className="correction__counter">🤖 API: {done}/4</span>
-        <select
-          value={style}
-          onChange={(e) => setStyle(e.target.value as Style)}
-          aria-label="Styl korekty"
-        >
+        <nav className="tabs" aria-label="Styl korekty">
           {STYLES.map((s) => (
-            <option key={s} value={s}>
+            <button
+              key={s}
+              className={`tab${s === style ? " tab--active" : ""}`}
+              onClick={() => setStyle(s)}
+            >
               {STYLE_LABELS[s]}
-            </option>
+            </button>
           ))}
-        </select>
-        <button onClick={runManual}>▶️ Popraw</button>
-        <button onClick={cancelAll}>❌ Anuluj wszystko</button>
-        <button onClick={() => setShowOriginal(true)} disabled={!originalText}>
-          📄 Oryginał
-        </button>
-        <button onClick={() => getCurrentWindow().hide()}>🔽 Minimalizuj</button>
+        </nav>
+        <div className="correction__actions">
+          <button
+            className="ghost"
+            onClick={() => setShowOriginal(true)}
+            disabled={!originalText}
+          >
+            Oryginał
+          </button>
+          <button className="ghost" onClick={cancelAll}>
+            Anuluj
+          </button>
+          <button
+            className="ghost"
+            title="Minimalizuj"
+            onClick={() => getCurrentWindow().hide()}
+          >
+            Minimalizuj
+          </button>
+          <button className="cta" onClick={runManual}>
+            Popraw
+          </button>
+        </div>
       </div>
 
       {notice && <div className="notice">{notice}</div>}
@@ -150,6 +162,7 @@ export function CorrectionView() {
             onUse={onUse}
             onCancel={(prov: Provider) => cancelOne(prov)}
             onReprocess={(prov: Provider, st: string) => reprocessProvider(prov, st)}
+            onRetry={(prov: Provider) => reprocessProvider(prov, style)}
           />
         ))}
       </div>

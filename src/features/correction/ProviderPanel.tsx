@@ -10,6 +10,7 @@ interface Props {
   onUse: (text: string) => void;
   onCancel: (provider: Provider) => void;
   onReprocess: (provider: Provider, style: string) => void;
+  onRetry: (provider: Provider) => void;
 }
 
 function statusLabel(state: PanelState): string {
@@ -17,17 +18,17 @@ function statusLabel(state: PanelState): string {
     case "idle":
       return "—";
     case "loading":
-      return "⏳ Przetwarzanie…";
+      return "przetwarzanie…";
     case "streaming":
-      return "✍️ Strumieniowanie…";
+      return "strumieniowanie…";
     case "done":
       return state.elapsedMs != null
-        ? `✅ ${(state.elapsedMs / 1000).toFixed(1)}s`
-        : "✅ Gotowe";
+        ? `${(state.elapsedMs / 1000).toFixed(1)}s`
+        : "gotowe";
     case "error":
-      return "⚠️ Błąd";
+      return "błąd";
     case "cancelled":
-      return "❌ Anulowano";
+      return "anulowano";
   }
 }
 
@@ -46,15 +47,20 @@ export function ProviderPanel({
   onUse,
   onCancel,
   onReprocess,
+  onRetry,
 }: Props) {
   const meta = PROVIDER_META[provider];
   const [menuOpen, setMenuOpen] = useState(false);
   const canUse = state.status === "done" && state.text.trim() !== "";
   const busy = state.status === "loading" || state.status === "streaming";
+  const failed = state.status === "error" || state.status === "cancelled";
 
   const body = () => {
     if (state.status === "error") {
       return <p className="panel__error">{state.error}</p>;
+    }
+    if (state.status === "cancelled") {
+      return <p className="panel__error">Anulowano.</p>;
     }
     if (busy && state.text === "") {
       return <div className="panel__spinner" aria-label="Ładowanie" />;
@@ -78,9 +84,14 @@ export function ProviderPanel({
   };
 
   return (
-    <section className="panel">
-      <header className="panel__head" style={{ background: meta.color }}>
-        <span className="panel__title">🤖 {meta.label}</span>
+    <section
+      className={`panel${failed ? " panel--failed" : ""}`}
+      style={{ "--pc": meta.color } as React.CSSProperties}
+    >
+      <header className="panel__head">
+        <span className="panel__title">
+          {meta.label} <span className="panel__dot" />
+        </span>
         <span className="panel__head-right">
           <span className="panel__status">{statusLabel(state)}</span>
           <span className="panel__menu-wrap">
@@ -89,7 +100,7 @@ export function ProviderPanel({
               title="Akcje"
               onClick={() => setMenuOpen((o) => !o)}
             >
-              ⚙️
+              ⚙
             </button>
             {menuOpen && (
               <div className="panel__menu" onMouseLeave={() => setMenuOpen(false)}>
@@ -119,7 +130,6 @@ export function ProviderPanel({
         </span>
       </header>
 
-      {/* Cienki, cyklicznie sunący pasek postępu — widoczny tylko gdy panel pracuje. */}
       {busy && (
         <div
           className="panel__progress"
@@ -132,14 +142,19 @@ export function ProviderPanel({
 
       <div className="panel__body">{body()}</div>
 
-      <button
-        className="panel__use"
-        style={{ background: canUse ? meta.color : undefined }}
-        disabled={!canUse}
-        onClick={() => onUse(state.text)}
-      >
-        📋 Użyj {meta.label}
-      </button>
+      {failed ? (
+        <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
+          Ponów ↻
+        </button>
+      ) : (
+        <button
+          className="panel__use"
+          disabled={!canUse}
+          onClick={() => onUse(state.text)}
+        >
+          Użyj {meta.label}
+        </button>
+      )}
     </section>
   );
 }
