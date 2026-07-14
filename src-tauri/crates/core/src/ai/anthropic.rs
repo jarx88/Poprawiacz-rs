@@ -118,6 +118,7 @@ mod tests {
             stream: false,
             reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
+            custom_system_prompt: None,
         }
     }
 
@@ -164,7 +165,7 @@ mod tests {
     fn body_requires_max_tokens_and_system() {
         let b = build_body(&req());
         assert_eq!(b["max_tokens"], MAX_TOKENS);
-        assert!(b["system"].as_str().unwrap().contains("virtual editor"));
+        assert!(b["system"].as_str().unwrap().contains("Polish editor"));
         assert_eq!(b["messages"][0]["role"], "user");
     }
 

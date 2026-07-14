@@ -161,6 +161,7 @@ mod tests {
             stream: false,
             reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
+            custom_system_prompt: None,
         }
     }
 
@@ -187,7 +188,7 @@ mod tests {
     #[test]
     fn body_has_system_instruction_and_safety() {
         let b = build_body(&req());
-        assert!(b["system_instruction"]["parts"][0]["text"].as_str().unwrap().contains("virtual editor"));
+        assert!(b["system_instruction"]["parts"][0]["text"].as_str().unwrap().contains("Polish editor"));
         assert_eq!(b["contents"][0]["parts"][1]["text"], "tekst do poprawy");
         assert_eq!(b["safetySettings"][0]["threshold"], "BLOCK_NONE");
         assert_eq!(b["generationConfig"]["maxOutputTokens"], MAX_OUTPUT_TOKENS);

@@ -124,6 +124,8 @@ pub struct SettingsView {
     pub clipboard_delay_ms: u64,
     /// provider key -> whether a key is stored
     pub keys_present: std::collections::HashMap<String, bool>,
+    /// Built-in default system prompt, so the UI can offer "restore default".
+    pub default_system_prompt: &'static str,
 }
 
 #[tauri::command]
@@ -141,6 +143,7 @@ pub fn get_settings(app: AppHandle) -> SettingsView {
         ai_settings: s.ai_settings,
         clipboard_delay_ms: s.clipboard_delay_ms,
         keys_present,
+        default_system_prompt: poprawiacz_core::prompts::SYSTEM_PROMPT,
     }
 }
 

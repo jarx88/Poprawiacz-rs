@@ -31,6 +31,7 @@ fn spawn_provider(
     let model = settings.models.resolved(provider);
     let reasoning_level = settings.ai_settings.reasoning_levels.for_provider(provider);
     let verbosity = settings.ai_settings.verbosity.clone();
+    let custom_system_prompt = Some(settings.ai_settings.system_prompt.clone());
     let key = config::get_api_key(provider);
     let http = app.state::<AppState>().http.clone();
     let app = app.clone();
@@ -59,6 +60,7 @@ fn spawn_provider(
                 stream,
                 reasoning_level,
                 verbosity,
+                custom_system_prompt,
             };
 
             let started = Instant::now();

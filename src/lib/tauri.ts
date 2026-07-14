@@ -21,6 +21,8 @@ export interface ReasoningLevels {
 export interface AiSettings {
   verbosity: string;
   reasoning_levels: ReasoningLevels;
+  /** User-defined system prompt; empty = built-in default. */
+  system_prompt: string;
 }
 
 export interface SettingsView {
@@ -31,6 +33,7 @@ export interface SettingsView {
   ai_settings: AiSettings;
   clipboard_delay_ms: number;
   keys_present: Record<string, boolean>;
+  default_system_prompt: string;
 }
 
 export interface SaveSettingsPayload {

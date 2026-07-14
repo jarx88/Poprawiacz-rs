@@ -101,6 +101,9 @@ pub struct AiSettings {
     pub verbosity: String,
     #[serde(default)]
     pub reasoning_levels: ReasoningLevels,
+    /// User-defined system prompt; empty = built-in default.
+    #[serde(default)]
+    pub system_prompt: String,
 }
 
 impl Default for AiSettings {
@@ -108,6 +111,7 @@ impl Default for AiSettings {
         Self {
             verbosity: "medium".to_string(),
             reasoning_levels: ReasoningLevels::default(),
+            system_prompt: String::new(),
         }
     }
 }
@@ -183,6 +187,7 @@ pub fn parse_ini(content: &str) -> Result<LegacyConfig, String> {
     let ai_settings = AiSettings {
         verbosity: get("ai_settings", "verbosity").unwrap_or(ai_defaults.verbosity),
         reasoning_levels,
+        system_prompt: String::new(),
     };
 
     Ok(LegacyConfig { api_keys, models, settings, ai_settings })

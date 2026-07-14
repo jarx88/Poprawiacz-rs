@@ -45,7 +45,9 @@ export default function SettingsDialog({ onClose }: Props) {
   const [ai, setAi] = useState<AiSettings>({
     verbosity: "medium",
     reasoning_levels: { openai: "off", anthropic: "off", gemini: "off", deepseek: "off" },
+    system_prompt: "",
   });
+  const [defaultPrompt, setDefaultPrompt] = useState("");
   const [keysPresent, setKeysPresent] = useState<Record<string, boolean>>({});
   const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -62,7 +64,8 @@ export default function SettingsDialog({ onClose }: Props) {
     setHighlightDiffs(s.highlight_diffs);
     setAutostartup(s.autostartup);
     setClipboardDelayMs(s.clipboard_delay_ms);
-    setAi(s.ai_settings);
+    setAi({ ...s.ai_settings, system_prompt: s.ai_settings.system_prompt ?? "" });
+    setDefaultPrompt(s.default_system_prompt);
     setKeysPresent(s.keys_present ?? {});
   };
 
@@ -148,6 +151,28 @@ export default function SettingsDialog({ onClose }: Props) {
             onChange={(e) => setClipboardDelayMs(Number(e.target.value))}
           />
         </label>
+
+        <fieldset className="provider-settings">
+          <legend>Prompt systemowy</legend>
+          <label className="field">
+            <textarea
+              rows={8}
+              placeholder="Puste = wbudowany domyślny prompt"
+              value={ai.system_prompt}
+              onChange={(e) => setAi((a) => ({ ...a, system_prompt: e.target.value }))}
+            />
+            <span className="field__hint">
+              Instrukcja wysyłana do AI przy stylach korekty (nie dotyczy stylów
+              „profesjonalny" i „prompt", które mają własne instrukcje).
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setAi((a) => ({ ...a, system_prompt: defaultPrompt }))}
+          >
+            Wstaw domyślny do edycji
+          </button>
+        </fieldset>
 
         <fieldset className="provider-settings">
           <legend>OpenAI — długość odpowiedzi (Responses API)</legend>

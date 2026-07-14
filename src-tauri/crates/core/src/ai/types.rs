@@ -129,10 +129,21 @@ pub struct CorrectionRequest {
     pub reasoning_level: ReasoningLevel,
     /// OpenAI Responses API output verbosity: low|medium|high.
     pub verbosity: String,
+    /// User-defined system prompt from Settings; empty/None = built-in default.
+    /// Applies only to styles that use the default editor prompt.
+    pub custom_system_prompt: Option<String>,
 }
 
 impl CorrectionRequest {
-    pub fn system_prompt(&self) -> &'static str {
+    pub fn system_prompt(&self) -> &str {
+        if crate::prompts::uses_default_system_prompt(self.style) {
+            if let Some(custom) = self.custom_system_prompt.as_deref() {
+                let custom = custom.trim();
+                if !custom.is_empty() {
+                    return custom;
+                }
+            }
+        }
         crate::prompts::system_prompt(self.style)
     }
     pub fn user_message(&self) -> String {
@@ -171,6 +182,31 @@ mod tests {
         assert!(Provider::uses_responses_api("o4-mini"));
         assert!(!Provider::uses_responses_api("gpt-4o-mini"));
         assert!(!Provider::uses_responses_api("claude-3-7-sonnet-latest"));
+    }
+
+    #[test]
+    fn custom_system_prompt_overrides_default_styles_only() {
+        let mut req = CorrectionRequest {
+            provider: Provider::OpenAI,
+            model: "gpt-5-mini".into(),
+            api_key: "sk".into(),
+            style: Style::Normal,
+            text: "t".into(),
+            stream: false,
+            reasoning_level: ReasoningLevel::Off,
+            verbosity: "medium".into(),
+            custom_system_prompt: Some("Custom prompt".into()),
+        };
+        assert_eq!(req.system_prompt(), "Custom prompt");
+        // Whitespace-only custom prompt falls back to the built-in default.
+        req.custom_system_prompt = Some("   ".into());
+        assert_eq!(req.system_prompt(), crate::prompts::system_prompt(Style::Normal));
+        // Professional/Prompt styles keep their dedicated system prompts.
+        req.custom_system_prompt = Some("Custom prompt".into());
+        req.style = Style::Professional;
+        assert_eq!(req.system_prompt(), crate::prompts::system_prompt(Style::Professional));
+        req.style = Style::Prompt;
+        assert_eq!(req.system_prompt(), crate::prompts::system_prompt(Style::Prompt));
     }
 
     #[test]
