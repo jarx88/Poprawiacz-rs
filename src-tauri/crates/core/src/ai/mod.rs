@@ -166,7 +166,7 @@ where
     let mut attempt = 0u32;
     loop {
         let mut emitted = false;
-        let result = stream_once(client, req, cancel, &mut |delta| {
+        let result = stream_once(client, req, cancel, |delta: &str| {
             emitted = true;
             on_chunk(delta);
         })
@@ -184,11 +184,11 @@ where
     }
 }
 
-async fn stream_once(
+async fn stream_once<F: FnMut(&str)>(
     client: &Client,
     req: &CorrectionRequest,
     cancel: &CancellationToken,
-    on_chunk: &mut dyn FnMut(&str),
+    mut on_chunk: F,
 ) -> Result<String, AiError> {
     debug_assert!(req.stream);
     let provider = req.provider;
