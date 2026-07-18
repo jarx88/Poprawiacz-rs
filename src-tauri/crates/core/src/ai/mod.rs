@@ -135,7 +135,17 @@ async fn send_once(
         },
     };
 
-    parse_body(provider, &body)
+    parse_body(provider, &body).map(|t| strip_ai_dashes(&t))
+}
+
+/// Models sneak em/en dashes into output despite the prompt ban — a dead
+/// giveaway of AI text. Deterministically replace them with a plain hyphen.
+fn strip_ai_dashes(s: &str) -> String {
+    if s.contains('\u{2014}') || s.contains('\u{2013}') {
+        s.replace('\u{2014}', "-").replace('\u{2013}', "-")
+    } else {
+        s.to_string()
+    }
 }
 
 /// Run one correction (non-streaming) with retry, timeout and cancellation.
@@ -239,6 +249,7 @@ async fn stream_once<F: FnMut(&str)>(
                 break;
             }
             if let Some(delta) = parse_stream_line(provider, &line)? {
+                let delta = strip_ai_dashes(&delta);
                 full.push_str(&delta);
                 on_chunk(&delta);
             }
@@ -250,6 +261,7 @@ async fn stream_once<F: FnMut(&str)>(
     // flush any trailing line without newline
     if !buf.trim().is_empty() {
         if let Some(delta) = parse_stream_line(provider, &buf)? {
+            let delta = strip_ai_dashes(&delta);
             full.push_str(&delta);
             on_chunk(&delta);
         }
@@ -261,6 +273,12 @@ async fn stream_once<F: FnMut(&str)>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strip_ai_dashes_replaces_em_and_en_dash() {
+        assert_eq!(strip_ai_dashes("tekst — wtrącenie – koniec"), "tekst - wtrącenie - koniec");
+        assert_eq!(strip_ai_dashes("zwykły tekst"), "zwykły tekst");
+    }
 
     #[test]
     fn truncate_keeps_short_strings() {
