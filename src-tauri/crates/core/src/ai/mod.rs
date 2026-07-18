@@ -142,7 +142,7 @@ async fn send_once(
 /// giveaway of AI text. Deterministically replace them with a plain hyphen.
 fn strip_ai_dashes(s: &str) -> String {
     if s.contains('\u{2014}') || s.contains('\u{2013}') {
-        s.replace('\u{2014}', "-").replace('\u{2013}', "-")
+        s.replace(['\u{2014}', '\u{2013}'], "-")
     } else {
         s.to_string()
     }
