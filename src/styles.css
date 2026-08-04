@@ -304,6 +304,14 @@ textarea:focus {
   color: var(--text);
   background: rgba(255, 255, 255, 0.07);
 }
+.panel__icon--like {
+  font-size: 15px;
+}
+.panel__icon--liked,
+.panel__icon--liked:disabled {
+  color: var(--pc);
+  background: color-mix(in srgb, var(--pc) 15%, transparent);
+}
 .panel__menu-wrap {
   position: relative;
 }

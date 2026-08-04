@@ -71,6 +71,7 @@ pub fn run() {
             clipboard::paste_text,
             config::get_settings,
             config::save_settings,
+            config::remember_correction,
             config::migrate_config_ini,
         ])
         .run(tauri::generate_context!())

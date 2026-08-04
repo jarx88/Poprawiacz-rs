@@ -30,6 +30,7 @@ export interface PanelState {
   text: string;
   error: string | null;
   elapsedMs: number | null;
+  style: Style;
 }
 
 export interface SessionStartedEvent {
@@ -47,6 +48,7 @@ export interface ResultEvent {
   session_id: number;
   provider: Provider;
   text: string;
+  style: Style;
   elapsed_ms: number;
 }
 

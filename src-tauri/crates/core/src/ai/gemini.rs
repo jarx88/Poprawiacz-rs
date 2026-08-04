@@ -6,7 +6,6 @@ use serde_json::{json, Value};
 
 use super::error::AiError;
 use super::types::{CorrectionRequest, ReasoningLevel};
-use crate::prompts::instruction_prompt;
 
 pub const BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 pub const MAX_OUTPUT_TOKENS: u32 = 3072;
@@ -105,10 +104,7 @@ pub fn build_body(req: &CorrectionRequest) -> Value {
         "system_instruction": {"parts": [{"text": req.system_prompt()}]},
         "contents": [{
             "role": "user",
-            "parts": [
-                {"text": instruction_prompt(req.style)},
-                {"text": req.text},
-            ],
+            "parts": [{"text": req.user_message()}],
         }],
         "generationConfig": {
             "maxOutputTokens": MAX_OUTPUT_TOKENS,
@@ -162,6 +158,7 @@ mod tests {
             reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
             custom_system_prompt: None,
+            correction_examples: Vec::new(),
         }
     }
 
@@ -189,7 +186,10 @@ mod tests {
     fn body_has_system_instruction_and_safety() {
         let b = build_body(&req());
         assert!(b["system_instruction"]["parts"][0]["text"].as_str().unwrap().contains("Polish editor"));
-        assert_eq!(b["contents"][0]["parts"][1]["text"], "tekst do poprawy");
+        assert!(b["contents"][0]["parts"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("tekst do poprawy"));
         assert_eq!(b["safetySettings"][0]["threshold"], "BLOCK_NONE");
         assert_eq!(b["generationConfig"]["maxOutputTokens"], MAX_OUTPUT_TOKENS);
     }

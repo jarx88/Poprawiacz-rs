@@ -32,6 +32,7 @@ fn spawn_provider(
     let reasoning_level = settings.ai_settings.reasoning_levels.for_provider(provider);
     let verbosity = settings.ai_settings.verbosity.clone();
     let custom_system_prompt = Some(settings.ai_settings.system_prompt.clone());
+    let correction_examples = settings.correction_examples;
     let key = config::get_api_key(provider);
     let http = app.state::<AppState>().http.clone();
     let app = app.clone();
@@ -61,6 +62,7 @@ fn spawn_provider(
                 reasoning_level,
                 verbosity,
                 custom_system_prompt,
+                correction_examples,
             };
 
             let started = Instant::now();
@@ -87,6 +89,7 @@ fn spawn_provider(
                             "session_id": session_id,
                             "provider": provider,
                             "text": text,
+                            "style": style.as_key(),
                             "elapsed_ms": elapsed_ms,
                         }),
                     );

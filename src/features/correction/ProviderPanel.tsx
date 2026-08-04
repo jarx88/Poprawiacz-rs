@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { diffWords } from "./diff";
-import { PanelState, Provider, PROVIDER_META } from "./types";
+import { PanelState, Provider, PROVIDER_META, Style } from "./types";
 
 interface Props {
   provider: Provider;
@@ -8,6 +8,7 @@ interface Props {
   originalText: string;
   highlightDiffs: boolean;
   onUse: (text: string) => void;
+  onLike: (text: string, style: Style) => Promise<boolean>;
   onCancel: (provider: Provider) => void;
   onReprocess: (provider: Provider, style: string) => void;
   onRetry: (provider: Provider) => void;
@@ -45,13 +46,18 @@ export function ProviderPanel({
   originalText,
   highlightDiffs,
   onUse,
+  onLike,
   onCancel,
   onReprocess,
   onRetry,
 }: Props) {
   const meta = PROVIDER_META[provider];
   const [menuOpen, setMenuOpen] = useState(false);
+  const [likedKey, setLikedKey] = useState("");
+  const [liking, setLiking] = useState(false);
   const canUse = state.status === "done" && state.text.trim() !== "";
+  const likeKey = `${originalText}\u0000${state.style}\u0000${state.text}`;
+  const liked = likedKey === likeKey;
   const busy = state.status === "loading" || state.status === "streaming";
   const failed = state.status === "error" || state.status === "cancelled";
 
@@ -94,6 +100,22 @@ export function ProviderPanel({
         </span>
         <span className="panel__head-right">
           <span className="panel__status">{statusLabel(state)}</span>
+          {state.status === "done" && (
+            <button
+              className={`panel__icon panel__icon--like${liked ? " panel__icon--liked" : ""}`}
+              title={liked ? "Zapamiętano tę korektę" : "Zapamiętaj jako dobry przykład"}
+              aria-label={liked ? "Korekta zapamiętana" : "Zapamiętaj korektę"}
+              aria-pressed={liked}
+              disabled={!canUse || liking || liked}
+              onClick={async () => {
+                setLiking(true);
+                if (await onLike(state.text, state.style)) setLikedKey(likeKey);
+                setLiking(false);
+              }}
+            >
+              👍
+            </button>
+          )}
           <span className="panel__menu-wrap">
             <button
               className="panel__icon"

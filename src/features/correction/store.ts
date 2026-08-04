@@ -13,7 +13,7 @@ function idlePanels(): Record<Provider, PanelState> {
   return Object.fromEntries(
     PROVIDERS.map((p) => [
       p,
-      { status: "idle", text: "", error: null, elapsedMs: null } as PanelState,
+      { status: "idle", text: "", error: null, elapsedMs: null, style: "normal" } as PanelState,
     ]),
   ) as Record<Provider, PanelState>;
 }
@@ -62,6 +62,7 @@ export const useCorrectionStore = create<CorrectionState>((set, get) => ({
             text: "",
             error: null,
             elapsedMs: null,
+            style: "normal",
           } as PanelState,
         ]),
       ) as Record<Provider, PanelState>,
@@ -97,6 +98,7 @@ export const useCorrectionStore = create<CorrectionState>((set, get) => ({
           text: e.text,
           error: null,
           elapsedMs: e.elapsed_ms,
+          style: e.style,
         },
       },
     }));
@@ -121,7 +123,13 @@ export const useCorrectionStore = create<CorrectionState>((set, get) => ({
     set((s) => ({
       panels: {
         ...s.panels,
-        [e.provider]: { status: "loading", text: "", error: null, elapsedMs: null },
+        [e.provider]: {
+          ...s.panels[e.provider],
+          status: "loading",
+          text: "",
+          error: null,
+          elapsedMs: null,
+        },
       },
     }));
   },
@@ -132,6 +140,7 @@ export const useCorrectionStore = create<CorrectionState>((set, get) => ({
       panels: {
         ...s.panels,
         [e.provider]: {
+          ...s.panels[e.provider],
           status: "error",
           text: "",
           error: e.message,

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::prompts::Style;
+use crate::prompts::{CorrectionExample, Style};
 
 /// Connection timeout for every provider (`connect=8s` in Python).
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
@@ -132,6 +132,8 @@ pub struct CorrectionRequest {
     /// User-defined system prompt from Settings; empty/None = built-in default.
     /// Applies only to styles that use the default editor prompt.
     pub custom_system_prompt: Option<String>,
+    /// Recent corrections approved by the user, used as style examples.
+    pub correction_examples: Vec<CorrectionExample>,
 }
 
 impl CorrectionRequest {
@@ -147,7 +149,7 @@ impl CorrectionRequest {
         crate::prompts::system_prompt(self.style)
     }
     pub fn user_message(&self) -> String {
-        crate::prompts::user_message(self.style, &self.text)
+        crate::prompts::user_message(self.style, &self.text, &self.correction_examples)
     }
 }
 
@@ -196,6 +198,7 @@ mod tests {
             reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
             custom_system_prompt: Some("Custom prompt".into()),
+            correction_examples: Vec::new(),
         };
         assert_eq!(req.system_prompt(), "Custom prompt");
         // Whitespace-only custom prompt falls back to the built-in default.

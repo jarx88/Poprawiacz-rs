@@ -7,6 +7,7 @@ import type {
   Provider,
   ResultEvent,
   SessionStartedEvent,
+  Style,
 } from "../features/correction/types";
 
 export type ReasoningLevel = "off" | "low" | "medium" | "high" | "max";
@@ -65,6 +66,12 @@ export const reprocessProvider = (
   provider: Provider,
   style: string,
 ): Promise<void> => invoke("reprocess_provider", { provider, style });
+
+export const rememberCorrection = (
+  original: string,
+  corrected: string,
+  style: Style,
+): Promise<number> => invoke("remember_correction", { original, corrected, style });
 
 export const readClipboard = (): Promise<string> => invoke("read_clipboard");
 

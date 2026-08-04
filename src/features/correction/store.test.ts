@@ -38,6 +38,7 @@ describe("correction store session isolation", () => {
       session_id: 9,
       provider: "anthropic",
       text: "OLD",
+      style: "normal",
       elapsed_ms: 100,
     });
     expect(store().panels.anthropic.text).toBe("");
@@ -50,6 +51,7 @@ describe("correction store session isolation", () => {
       session_id: 3,
       provider: "gemini",
       text: "poprawione",
+      style: "normal",
       elapsed_ms: 1200,
     });
     expect(store().panels.gemini.status).toBe("done");
@@ -68,6 +70,7 @@ describe("correction store session isolation", () => {
       session_id: 7,
       provider: "openai",
       text: "ok",
+      style: "normal",
       elapsed_ms: 50,
     });
     expect(store().panels.deepseek.status).toBe("error");
@@ -81,6 +84,7 @@ describe("correction store session isolation", () => {
       session_id: 8,
       provider: "openai",
       text: "final",
+      style: "normal",
       elapsed_ms: 10,
     });
     store().applyChunk({ session_id: 8, provider: "openai", delta: "late" });

@@ -119,6 +119,7 @@ mod tests {
             reasoning_level: ReasoningLevel::Off,
             verbosity: "medium".into(),
             custom_system_prompt: None,
+            correction_examples: Vec::new(),
         }
     }
 

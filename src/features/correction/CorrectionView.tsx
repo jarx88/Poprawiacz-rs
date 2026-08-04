@@ -13,6 +13,7 @@ import {
   onSessionStarted,
   pasteText,
   readClipboard,
+  rememberCorrection,
   reprocessProvider,
   startCorrection,
 } from "../../lib/tauri";
@@ -93,6 +94,17 @@ export function CorrectionView() {
     }
   };
 
+  const onLike = async (corrected: string, correctionStyle: Style): Promise<boolean> => {
+    try {
+      const count = await rememberCorrection(originalText, corrected, correctionStyle);
+      setNotice(`Zapamiętano dobry przykład (${count}/5).`);
+      return true;
+    } catch (e) {
+      setNotice(`Nie udało się zapamiętać korekty: ${e}`);
+      return false;
+    }
+  };
+
   // Optimistic cancel: flip the panel(s) immediately, then tell the backend to
   // abort the request (don't wait for the round-trip event).
   const cancelOne = (prov: Provider) => {
@@ -160,6 +172,7 @@ export function CorrectionView() {
             originalText={originalText}
             highlightDiffs={highlightDiffs}
             onUse={onUse}
+            onLike={onLike}
             onCancel={(prov: Provider) => cancelOne(prov)}
             onReprocess={(prov: Provider, st: string) => reprocessProvider(prov, st)}
             onRetry={(prov: Provider) => reprocessProvider(prov, style)}

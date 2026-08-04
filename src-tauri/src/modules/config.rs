@@ -5,6 +5,9 @@ use std::path::PathBuf;
 
 use poprawiacz_core::ai::Provider;
 use poprawiacz_core::config::{parse_ini, AiSettings, ProviderModels};
+use poprawiacz_core::prompts::{
+    remember_example, CorrectionExample, Style, MAX_CORRECTION_EXAMPLES,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -30,6 +33,8 @@ pub struct AppSettings {
     pub ai_settings: AiSettings,
     #[serde(default = "default_clipboard_delay_ms")]
     pub clipboard_delay_ms: u64,
+    #[serde(default)]
+    pub correction_examples: Vec<CorrectionExample>,
 }
 
 impl Default for AppSettings {
@@ -41,6 +46,7 @@ impl Default for AppSettings {
             autostartup: false,
             ai_settings: AiSettings::default(),
             clipboard_delay_ms: DEFAULT_CLIPBOARD_DELAY_MS,
+            correction_examples: Vec::new(),
         }
     }
 }
@@ -50,6 +56,11 @@ impl AppSettings {
         if self.default_style.trim().is_empty() {
             self.default_style = "normal".to_string();
         }
+        let excess = self
+            .correction_examples
+            .len()
+            .saturating_sub(MAX_CORRECTION_EXAMPLES);
+        self.correction_examples.drain(..excess);
         self
     }
 }
@@ -171,6 +182,7 @@ pub fn save_settings(app: AppHandle, payload: SaveSettingsPayload) -> Result<(),
 }
 
 fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result<(), String> {
+    let correction_examples = load_settings(app).correction_examples;
     let settings = AppSettings {
         models: payload.models.clone(),
         default_style: payload.default_style.clone(),
@@ -178,6 +190,7 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
         autostartup: payload.autostartup,
         ai_settings: payload.ai_settings.clone(),
         clipboard_delay_ms: payload.clipboard_delay_ms,
+        correction_examples,
     }
     .ensure_style();
     persist_settings(app, &settings)?;
@@ -193,6 +206,31 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
     Ok(())
 }
 
+#[tauri::command]
+pub fn remember_correction(
+    app: AppHandle,
+    original: String,
+    corrected: String,
+    style: String,
+) -> Result<usize, String> {
+    if original.trim().is_empty() || corrected.trim().is_empty() {
+        return Err("original and corrected text must not be empty".into());
+    }
+
+    let mut settings = load_settings(&app);
+    remember_example(
+        &mut settings.correction_examples,
+        CorrectionExample {
+            style: Style::from_key(&style),
+            original,
+            corrected,
+        },
+    );
+    let count = settings.correction_examples.len();
+    persist_settings(&app, &settings)?;
+    Ok(count)
+}
+
 /// Migrate a legacy `config.ini`: persist models/style and move API keys into
 /// the keychain. The plaintext keys are NOT written back to disk.
 #[tauri::command]
@@ -200,6 +238,7 @@ pub fn migrate_config_ini(app: AppHandle, path: String) -> Result<u32, String> {
     let content = std::fs::read_to_string(&path).map_err(|e| format!("read {path}: {e}"))?;
     let legacy = parse_ini(&content)?;
 
+    let correction_examples = load_settings(&app).correction_examples;
     let settings = AppSettings {
         models: legacy.models.clone(),
         default_style: legacy.settings.default_style.clone(),
@@ -207,6 +246,7 @@ pub fn migrate_config_ini(app: AppHandle, path: String) -> Result<u32, String> {
         autostartup: legacy.settings.autostartup,
         ai_settings: legacy.ai_settings.clone(),
         clipboard_delay_ms: legacy.settings.clipboard_delay_ms,
+        correction_examples,
     }
     .ensure_style();
     persist_settings(&app, &settings)?;

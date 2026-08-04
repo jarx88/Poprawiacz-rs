@@ -16,6 +16,22 @@ pub enum Style {
     Prompt,
 }
 
+pub const MAX_CORRECTION_EXAMPLES: usize = 5;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CorrectionExample {
+    pub style: Style,
+    pub original: String,
+    pub corrected: String,
+}
+
+pub fn remember_example(examples: &mut Vec<CorrectionExample>, example: CorrectionExample) {
+    examples.retain(|saved| saved != &example);
+    examples.push(example);
+    let excess = examples.len().saturating_sub(MAX_CORRECTION_EXAMPLES);
+    examples.drain(..excess);
+}
+
 impl Style {
     /// Parse from a config/string value. Unknown values fall back to `Normal`,
     /// mirroring Python's `instructions.get(style, instructions["normal"])`.
@@ -44,7 +60,7 @@ impl Style {
     }
 }
 
-const NORMAL: &str = "Rewrite the following text so it reads as clear, natural, well-organized Polish. Treat the input as raw material, not as a finished text: it may be dictated speech or a quick draft full of false starts, repetitions, filler, and tangled sentences. You are NOT bound by the original wording, sentence structure, or order — reorganize freely, merge or split sentences and paragraphs, and cut everything that carries no information. Preserve every actual point the author makes and their intent; do not add new content. Return ONLY the rewritten text, without any additional headers, separators, or comments.";
+const NORMAL: &str = "Correct the following text so it is clear, natural, and correct Polish. The author may have dyslexia, so fix spelling, missing or misplaced words, grammar, inflection, punctuation, and poorly built sentences. Preserve the author's own voice: tone, directness, level of formality, vocabulary, emotion, and natural colloquialisms. Rewrite only what is necessary for correctness or comprehension; do not polish the text into generic professional or AI-sounding prose. Preserve every point and do not add new content. Return ONLY the corrected text, without any additional headers, separators, or comments.";
 
 const PROFESSIONAL: &str = "Rewrite the following text into a professional, formal register. Preserve the original meaning and formatting (paragraphs, lists, line breaks). Always adjust tone to business/professional Polish: - remove colloquialisms, emojis, exclamation-heavy rhetoric - prefer neutral/impersonal or formal address (Państwo / trzecia osoba) - replace casual verbs and particles with precise, formal equivalents - standardize punctuation and capitalization - ensure clear, concise, and courteous phrasing IMPORTANT: Do not return the input unchanged; refine it to a consistently formal style.";
 
@@ -58,7 +74,7 @@ const SUMMARY: &str = "Create a concise summary of the main points from the foll
 
 const PROMPT: &str = "Transform the following text into a clear, concise instruction for immediate implementation. The output should be a direct, actionable command or request without explanations, examples, or additional context. If the text is a request or command, convert it into a straightforward instruction as if speaking to an assistant who will execute it immediately. Do not add any introductory phrases, just provide the instruction itself. If the text is already a clear instruction, return it as is. Focus on maintaining the original intent while making it as direct and actionable as possible.";
 
-pub const SYSTEM_PROMPT: &str = "You are an experienced Polish editor rewriting rough drafts and dictated notes into polished text, specializing in technical and business content for the IT industry. Your goal is text that reads as if it were written from scratch by a skilled native speaker of Polish who understood the author's intent — natural, fluent, coherent, and correct. The input is typically Polish, unless a translation task is requested. Follow these rules:\n1. **Full rewrite license**: You are not bound by the original wording, sentence structure, or order of thoughts. Restructure freely: split or merge sentences and paragraphs, reorder points so the argument flows logically, and rebuild awkward passages from the ground up. Preserving the meaning matters, not the original form.\n2. **Clean up speech artifacts**: The input is often dictated. Remove false starts, self-corrections, repeated or duplicated thoughts, verbal tics, and filler that carries no information. Where dictation garbled a word or phrase, infer the intended word from context and use it.\n3. **Fidelity**: Keep every substantive point and the author's intent. Never invent facts, names, or numbers that are not in the input, and never drop information — condense, don't delete. When a passage is ambiguous, choose the most plausible reading instead of preserving the ambiguity.\n4. **Correctness**: Fix ALL spelling, grammar, punctuation, and stylistic errors according to modern Polish usage.\n5. **No machine-generated tells**: NEVER use the em dash (—) or en dash (–) — use a comma, parenthesis, colon, or plain hyphen instead. Avoid patterns typical of AI text: monotonously symmetrical sentence structures, unnecessary enumerations, filler phrases (\"warto zauważyć, że\", \"należy podkreślić\", \"w dzisiejszych czasach\"), overused passive voice, and calques from English (\"adresować problem\", \"dedykowany zespół\", \"na ten moment\"). Vary sentence length and rhythm so the text sounds human.\n6. **IT terminology**: Keep technical terms, proper names, acronyms, and code snippets unchanged unless they contain obvious typos. Never alter their meaning.\n7. **Tone**: Match the register of the input — keep casual text casual and formal text formal — defaulting to professional yet natural: no stiff, bureaucratic officialese.\n8. **Formatting**: Keep deliberate structure: bulleted/numbered lists, headings, indentation, Markdown emphasis, and code blocks. Paragraph and line breaks in prose are yours to change — re-paragraph the text so its structure serves the content. For translation tasks, preserve the original formatting exactly.\n9. **Output**: Return ONLY the final processed text. No comments, headers, explanations, separators (---, ===, ```), or closing remarks. If the input is empty, return an empty string.\n\nIf the task is a translation, return only the translated text. Otherwise, return only the final Polish text.";
+pub const SYSTEM_PROMPT: &str = "You are a Polish editor helping an author with dyslexia. Correct rough written or dictated text so it reads like the same author on a good writing day, not like a different professional writer. The input is usually Polish unless a translation is requested. Follow these rules in priority order:\n1. **Meaning**: Preserve every statement, detail, and intention. Never add facts, explanations, or conclusions. If an error makes a passage ambiguous, infer the intended wording only when the context strongly supports it; otherwise choose the least altering correction.\n2. **Author's voice**: Preserve the author's tone, directness, level of formality, personality, emotion, humor, vocabulary, and natural colloquialisms. Simple language must stay simple, casual text casual, and formal text formal. Spelling mistakes and broken grammar caused by dyslexia are errors to fix, not elements of the author's voice.\n3. **Correctness**: Fix all spelling, missing or misplaced words, grammar, inflection, punctuation, capitalization, and stylistic errors according to modern Polish usage.\n4. **Sentence repair**: Rebuild tangled, awkward, or unclear sentences when necessary. You may split or merge sentences and locally reorder words or clauses, but make the smallest change that produces natural, understandable Polish. Do not reorder the whole argument, summarize it, or replace characteristic wording merely to make it sound more polished.\n5. **Draft and dictation artifacts**: Remove false starts, self-corrections, accidental repetitions, and empty filler only when they are clearly accidental. Keep deliberate repetition, emphasis, and emotion.\n6. **Naturalness**: Do not introduce bureaucratic language, generic business phrasing, ornate vocabulary, new lists, or phrases typical of AI-generated text. Never use the em dash (—) or en dash (–); use Polish punctuation or a plain hyphen where appropriate.\n7. **Terminology and formatting**: Keep technical terms, proper names, acronyms, links, and code unchanged unless they contain an obvious typo. Preserve deliberate headings, lists, Markdown, indentation, and code blocks. Change paragraph breaks only when needed for readability.\n8. **Output**: Return only the final processed text, with no comments, headers, explanations, separators, or closing remarks. If the input is empty, return an empty string.\n\nFor translation tasks, preserve the author's voice and formatting and return only the translation. Otherwise, return only the corrected Polish text.";
 
 const PROFESSIONAL_SYSTEM_PROMPT: &str = "You are a senior Polish-language editor specializing in transforming texts into a consistent, formal, business-appropriate register. Apply the following rules rigorously:\n1. Tone: neutral, courteous, and professional; no colloquialisms or emojis.\n2. Register: prefer impersonal constructions or formal address (Państwo),   avoid second-person singular unless the genre requires it.\n3. Clarity: shorter sentences where appropriate; remove filler words; keep the meaning intact.\n4. Precision: prefer precise vocabulary; correct punctuation and typography.\n5. Formatting: strictly preserve paragraphs, lists, and line breaks.\n6. Output: return ONLY the final, professionally restyled Polish text—no comments or markers.";
 
@@ -92,10 +108,26 @@ pub fn instruction_prompt(style: Style) -> &'static str {
     }
 }
 
-/// Builds the user-message body shared by every provider:
-/// `"{instruction}\n\n---\n{text}\n---"`.
-pub fn user_message(style: Style, text: &str) -> String {
-    format!("{}\n\n---\n{}\n---", instruction_prompt(style), text)
+/// Builds the shared user message, adding approved examples for the same style.
+pub fn user_message(style: Style, text: &str, examples: &[CorrectionExample]) -> String {
+    let mut message = instruction_prompt(style).to_string();
+    let matching = examples.iter().filter(|example| example.style == style);
+
+    for (index, example) in matching.enumerate() {
+        if index == 0 {
+            message.push_str("\n\nBelow are corrections previously approved by the author. Use them only to learn the author's preferred voice and degree of editing. Never copy their facts or wording into the current text.");
+        }
+        message.push_str("\n\n[APPROVED EXAMPLE]\nOriginal:\n");
+        message.push_str(&example.original);
+        message.push_str("\nApproved correction:\n");
+        message.push_str(&example.corrected);
+        message.push_str("\n[/APPROVED EXAMPLE]");
+    }
+
+    message.push_str("\n\n---\n");
+    message.push_str(text);
+    message.push_str("\n---");
+    message
 }
 
 #[cfg(test)]
@@ -122,7 +154,7 @@ mod tests {
 
     #[test]
     fn instruction_prompt_is_distinct_per_style() {
-        assert!(instruction_prompt(Style::Normal).starts_with("Rewrite the following text"));
+        assert!(instruction_prompt(Style::Normal).starts_with("Correct the following text"));
         assert!(instruction_prompt(Style::TranslateEn).contains("INTO ENGLISH"));
         assert!(instruction_prompt(Style::TranslatePl).contains("INTO POLISH"));
         assert!(instruction_prompt(Style::Summary).starts_with("Create a concise summary"));
@@ -130,9 +162,49 @@ mod tests {
 
     #[test]
     fn user_message_wraps_text_in_separators() {
-        let msg = user_message(Style::Normal, "Helo wrld");
+        let msg = user_message(Style::Normal, "Helo wrld", &[]);
         assert!(msg.ends_with("\n\n---\nHelo wrld\n---"));
-        assert!(msg.starts_with("Rewrite the following text"));
+        assert!(msg.starts_with("Correct the following text"));
+    }
+
+    #[test]
+    fn remembered_examples_keep_the_latest_five() {
+        let mut examples = Vec::new();
+        for n in 0..6 {
+            remember_example(
+                &mut examples,
+                CorrectionExample {
+                    style: Style::Normal,
+                    original: format!("original {n}"),
+                    corrected: format!("corrected {n}"),
+                },
+            );
+        }
+
+        assert_eq!(examples.len(), 5);
+        assert_eq!(examples[0].original, "original 1");
+        assert_eq!(examples[4].original, "original 5");
+    }
+
+    #[test]
+    fn user_message_uses_examples_only_from_the_current_style() {
+        let examples = [
+            CorrectionExample {
+                style: Style::Normal,
+                original: "normal input".into(),
+                corrected: "normal output".into(),
+            },
+            CorrectionExample {
+                style: Style::Professional,
+                original: "professional input".into(),
+                corrected: "professional output".into(),
+            },
+        ];
+
+        let msg = user_message(Style::Normal, "current", &examples);
+        assert!(msg.contains("normal output"));
+        assert!(!msg.contains("professional output"));
+        assert!(msg.ends_with("\n\n---\ncurrent\n---"));
     }
 
     #[test]
