@@ -21,6 +21,7 @@ configparser = "3"
 dirs = "6"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 sha2 = "0.10"
+tracing = "0.1"
 url = "2"
 
 [dev-dependencies]

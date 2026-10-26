@@ -9,6 +9,23 @@ use super::types::{CorrectionRequest, ReasoningLevel};
 
 pub const BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 pub const MAX_OUTPUT_TOKENS: u32 = 3072;
+/// Answers when the configured model is overloaded or out of quota: the
+/// fastest model in live tests (~0.5 s) and the cheapest free-tier one.
+pub const FALLBACK_MODEL: &str = "gemini-3.5-flash-lite";
+
+/// The fallback for `model`, unless it already is the fallback.
+pub fn fallback_model(model: &str) -> Option<&'static str> {
+    (!model.trim().eq_ignore_ascii_case(FALLBACK_MODEL)).then_some(FALLBACK_MODEL)
+}
+
+/// Gemini 3 models where Off maps to `thinkingLevel: "minimal"` (docs, Oct
+/// 2026). Others (3.8-flash, Pro, aliases, future models) reject it with HTTP
+/// 400, so Off falls back to "low", which every Gemini 3 text model accepts.
+/// 3.5-flash-lite accepts "minimal" but then sometimes echoes the text
+/// uncorrected (1 of 8 live runs, 0 of 8 on "low") at the same latency.
+fn supports_minimal_thinking(m: &str) -> bool {
+    ["3.6-flash", "3-flash-preview"].iter().any(|x| m.contains(x))
+}
 
 /// Full endpoint for a model, e.g. `.../models/gemini-2.5-flash:generateContent`.
 pub fn endpoint(model: &str) -> String {
@@ -66,14 +83,13 @@ fn thinking_config(level: ReasoningLevel, model: &str) -> Value {
     let m = model.to_ascii_lowercase();
     let is_pro = m.contains("pro");
 
-    if m.contains("gemini-3") {
+    if m.contains("gemini-3") || m.contains("-latest") {
         let lvl = match level {
-            // Gemini 3 Pro has no "minimal" tier; fall back to "low".
             ReasoningLevel::Off => {
-                if is_pro {
-                    "low"
-                } else {
+                if supports_minimal_thinking(&m) {
                     "minimal"
+                } else {
+                    "low"
                 }
             }
             ReasoningLevel::Low => "low",
@@ -216,11 +232,18 @@ mod tests {
 
     #[test]
     fn gemini3_uses_thinking_level_not_budget() {
-        let c = thinking_config(ReasoningLevel::Off, "gemini-3.5-flash");
+        let c = thinking_config(ReasoningLevel::Off, "gemini-3.6-flash");
         assert_eq!(c["thinkingLevel"], "minimal");
         assert!(c.get("thinkingBudget").is_none());
         // Gemini 3 Pro has no "minimal" -> falls back to "low".
         assert_eq!(thinking_config(ReasoningLevel::Off, "gemini-3-pro")["thinkingLevel"], "low");
+        // 3.8-flash (and aliases routed to it) returns 400 for "minimal".
+        assert_eq!(thinking_config(ReasoningLevel::Off, "gemini-3.8-flash")["thinkingLevel"], "low");
+        assert_eq!(thinking_config(ReasoningLevel::Off, "gemini-flash-latest")["thinkingLevel"], "low");
+        assert_eq!(thinking_config(ReasoningLevel::Off, "gemini-3.6-flash")["thinkingLevel"], "minimal");
+        assert_eq!(thinking_config(ReasoningLevel::Off, FALLBACK_MODEL)["thinkingLevel"], "low");
+        assert!(fallback_model(FALLBACK_MODEL).is_none());
+        assert_eq!(fallback_model("gemini-3.6-flash"), Some(FALLBACK_MODEL));
         assert_eq!(thinking_config(ReasoningLevel::High, "gemini-3.5-flash")["thinkingLevel"], "high");
     }
 

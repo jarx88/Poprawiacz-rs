@@ -154,10 +154,27 @@ pub async fn correct(
     req: &CorrectionRequest,
     cancel: &CancellationToken,
 ) -> Result<String, AiError> {
-    retry::with_retries(MAX_RETRIES, RETRY_BACKOFF, |_attempt| {
-        send_once(client, req, cancel)
-    })
-    .await
+    let fallback = fallback_request(req);
+    // Retrying an overloaded Gemini model only adds delay; go to the fallback.
+    let retries = if fallback.is_some() { 0 } else { MAX_RETRIES };
+    let result = retry::with_retries(retries, RETRY_BACKOFF, |_attempt| send_once(client, req, cancel)).await;
+    match (result, fallback) {
+        (Err(e), Some(fb)) if e.is_retryable() => {
+            tracing::warn!(model = %req.model, fallback = %fb.model, "gemini: {e}; trying fallback model");
+            retry::with_retries(MAX_RETRIES, RETRY_BACKOFF, |_attempt| send_once(client, &fb, cancel)).await
+        }
+        (result, _) => result,
+    }
+}
+
+/// Gemini only: the same request on [`gemini::FALLBACK_MODEL`], used when the
+/// configured model is overloaded (503), out of free-tier quota (429) or
+/// times out.
+fn fallback_request(req: &CorrectionRequest) -> Option<CorrectionRequest> {
+    if req.provider != Provider::Gemini {
+        return None;
+    }
+    gemini::fallback_model(&req.model).map(|model| CorrectionRequest { model: model.into(), ..req.clone() })
 }
 
 /// Run a streaming correction (any provider). `on_chunk` is called for every
@@ -173,6 +190,27 @@ pub async fn correct_stream<F>(
 where
     F: FnMut(&str),
 {
+    let fallback = fallback_request(req);
+    let retries = if fallback.is_some() { 0 } else { MAX_RETRIES };
+    let (result, emitted) = stream_with_retries(client, req, cancel, retries, &mut on_chunk).await;
+    match (result, fallback) {
+        (Err(e), Some(fb)) if !emitted && e.is_retryable() => {
+            tracing::warn!(model = %req.model, fallback = %fb.model, "gemini: {e}; trying fallback model");
+            stream_with_retries(client, &fb, cancel, MAX_RETRIES, &mut on_chunk).await.0
+        }
+        (result, _) => result,
+    }
+}
+
+/// Streaming attempts of one request; also reports whether any chunk reached
+/// `on_chunk` (then neither a retry nor a fallback is safe).
+async fn stream_with_retries<F: FnMut(&str)>(
+    client: &Client,
+    req: &CorrectionRequest,
+    cancel: &CancellationToken,
+    max_retries: u32,
+    on_chunk: &mut F,
+) -> (Result<String, AiError>, bool) {
     let mut attempt = 0u32;
     loop {
         let mut emitted = false;
@@ -182,10 +220,10 @@ where
         })
         .await;
         match result {
-            Ok(v) => return Ok(v),
+            Ok(v) => return (Ok(v), emitted),
             Err(e) => {
-                if emitted || attempt >= MAX_RETRIES || !e.is_retryable() {
-                    return Err(e);
+                if emitted || attempt >= max_retries || !e.is_retryable() {
+                    return (Err(e), emitted);
                 }
                 attempt += 1;
                 tokio::time::sleep(RETRY_BACKOFF * 2u32.saturating_pow(attempt - 1)).await;
@@ -284,6 +322,30 @@ mod tests {
     fn truncate_keeps_short_strings() {
         assert_eq!(truncate("abc", 10), "abc");
         assert_eq!(truncate("abcdef", 3), "abc…");
+    }
+
+    #[test]
+    fn only_gemini_falls_back_and_never_to_itself() {
+        let mut req = CorrectionRequest {
+            provider: Provider::Gemini,
+            model: "gemini-3.1-flash-lite".into(),
+            api_key: "k".into(),
+            style: crate::Style::Normal,
+            text: "t".into(),
+            stream: true,
+            reasoning_level: ReasoningLevel::Off,
+            verbosity: "medium".into(),
+            custom_system_prompt: None,
+            correction_examples: Vec::new(),
+        };
+        let fb = fallback_request(&req).unwrap();
+        assert_eq!(fb.model, gemini::FALLBACK_MODEL);
+        assert_eq!(fb.text, req.text);
+        req.model = gemini::FALLBACK_MODEL.into();
+        assert!(fallback_request(&req).is_none());
+        req.provider = Provider::OpenAI;
+        req.model = "gpt-5-mini".into();
+        assert!(fallback_request(&req).is_none());
     }
 
     #[test]
