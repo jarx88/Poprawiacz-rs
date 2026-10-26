@@ -24,7 +24,10 @@ export function validateApiKey(provider: Provider, key: string): string | null {
         ? null
         : "Klucz Anthropic zwykle zaczyna się od 'sk-ant-'";
     case "gemini":
-      return k.startsWith("AIza") ? null : "Klucz Gemini zwykle zaczyna się od 'AIza'";
+      // AI Studio issues `AQ.` auth keys since 2026; legacy standard keys start with `AIza`.
+      return k.startsWith("AQ.") || k.startsWith("AIza")
+        ? null
+        : "Klucz Gemini zwykle zaczyna się od 'AQ.' (lub starszy 'AIza')";
     case "deepseek":
       return k.startsWith("sk-") ? null : "Klucz DeepSeek zwykle zaczyna się od 'sk-'";
   }

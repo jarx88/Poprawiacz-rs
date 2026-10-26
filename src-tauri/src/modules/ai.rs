@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 
 use super::config;
+use super::updater;
 use super::AppState;
 
 /// Spawn one provider's correction task within `session_id`, emitting
@@ -136,6 +137,9 @@ pub fn run_correction(app: &AppHandle, text: String, style: Style) -> u64 {
         .session
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
         + 1;
+    state
+        .last_activity_s
+        .store(updater::now_s(), std::sync::atomic::Ordering::SeqCst);
 
     // Fresh per-provider tokens; cancel the previous session's in-flight tasks.
     let mut tokens = std::collections::HashMap::new();
@@ -200,6 +204,9 @@ pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Re
     };
 
     // Fresh token for this provider; cancel its previous in-flight task.
+    state
+        .last_activity_s
+        .store(updater::now_s(), std::sync::atomic::Ordering::SeqCst);
     let token = CancellationToken::new();
     {
         let mut guard = state.cancel.lock().expect("cancel mutex poisoned");

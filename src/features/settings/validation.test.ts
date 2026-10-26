@@ -21,7 +21,8 @@ describe("validateApiKey", () => {
     expect(validateApiKey("anthropic", "sk-ant-abcdefghijk")).toBeNull();
     expect(validateApiKey("anthropic", "sk-abcdefghijk")).toMatch(/sk-ant-/);
     expect(validateApiKey("gemini", "AIzaSyABCDEFGHIJK")).toBeNull();
-    expect(validateApiKey("gemini", "xyzabcdefghijk")).toMatch(/AIza/);
+    expect(validateApiKey("gemini", "AQ.Ab8RN6abcdefghijk")).toBeNull();
+    expect(validateApiKey("gemini", "xyzabcdefghijk")).toMatch(/AQ\./);
   });
 });
 

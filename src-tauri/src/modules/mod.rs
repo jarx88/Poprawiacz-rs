@@ -8,6 +8,7 @@ pub mod config;
 pub mod hotkey;
 pub mod logging;
 pub mod tray;
+pub mod updater;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
@@ -47,6 +48,8 @@ pub struct AppState {
     pub cancel: Mutex<SessionCancels>,
     /// Last correction input: (session_id, text, style) — for single-panel reprocess.
     pub last_input: Mutex<Option<(u64, String, Style)>>,
+    /// Unix seconds of the last correction start; the updater waits for quiet.
+    pub last_activity_s: AtomicU64,
 }
 
 impl AppState {
@@ -56,6 +59,7 @@ impl AppState {
             session: AtomicU64::new(0),
             cancel: Mutex::new(SessionCancels::default()),
             last_input: Mutex::new(None),
+            last_activity_s: AtomicU64::new(0),
         }
     }
 }

@@ -45,6 +45,7 @@ enigo = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
 # Release profile tuned for small, fast binaries (Terax-inspired).
 [profile.release]
@@ -54,3 +55,10 @@ codegen-units = 1
 panic = "abort"
 strip = true
 incremental = false
+
+# Fast local Windows builds for scripts/publish-dev.sh (self-updater).
+[profile.dev-release]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+incremental = true

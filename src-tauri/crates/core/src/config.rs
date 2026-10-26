@@ -16,7 +16,7 @@ pub fn default_model(provider: Provider) -> &'static str {
     match provider {
         Provider::OpenAI => "gpt-5-mini",
         Provider::Anthropic => "claude-3-7-sonnet-latest",
-        Provider::Gemini => "gemini-2.5-flash",
+        Provider::Gemini => "gemini-3.8-flash",
         Provider::DeepSeek => "deepseek-chat",
     }
 }
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn missing_model_falls_back_to_default() {
         let c = parse_ini("[API_KEYS]\nopenai = x\n").unwrap();
-        assert_eq!(c.models.resolved(Provider::Gemini), "gemini-2.5-flash");
+        assert_eq!(c.models.resolved(Provider::Gemini), "gemini-3.8-flash");
         assert_eq!(c.models.resolved(Provider::OpenAI), "gpt-5-mini");
     }
 

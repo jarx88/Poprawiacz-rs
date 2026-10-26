@@ -20,6 +20,8 @@ thiserror = "2"
 configparser = "3"
 dirs = "6"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+sha2 = "0.10"
+url = "2"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt", "macros", "time", "rt-multi-thread"] }
+tokio = { version = "1", features = ["rt", "macros", "time", "rt-multi-thread", "net", "io-util"] }

@@ -4,7 +4,7 @@
 
 mod modules;
 
-use modules::{ai, autostart, clipboard, config, hotkey, logging, tray, AppState};
+use modules::{ai, autostart, clipboard, config, hotkey, logging, tray, updater, AppState};
 use poprawiacz_core::ai::build_client;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -12,6 +12,17 @@ use tauri_plugin_global_shortcut::ShortcutState;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     logging::init();
+    let args: Vec<String> = std::env::args().collect();
+    if updater::run_guard(&args) {
+        return;
+    }
+    let after_update = updater::finish_pending_update(&args);
+    tracing::info!(
+        "PoprawiaczTekstu {} (build {}){}",
+        updater::BUILD.version,
+        updater::BUILD.build,
+        if after_update { ", po aktualizacji" } else { "" }
+    );
 
     let http = build_client().expect("failed to build HTTP client");
 
@@ -33,13 +44,17 @@ pub fn run() {
                 .build(),
         )
         .manage(AppState::new(http))
-        .setup(|app| {
+        .setup(move |app| {
             // Enforce the frameless window at runtime too — the conf flag can be
             // overridden by restored window state on some setups, leaving the
             // native title bar visible.
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_decorations(false);
                 let _ = win.set_shadow(true);
+                // Updates install only while the app sits in the tray; stay there.
+                if after_update {
+                    let _ = win.hide();
+                }
             }
             hotkey::register(app.handle());
             tray::build(app.handle())?;
@@ -48,6 +63,8 @@ pub fn run() {
             if let Err(e) = autostart::set_enabled(autostart_on) {
                 tracing::warn!("autostart sync failed: {e}");
             }
+            tauri::async_runtime::spawn(updater::run(app.handle().clone()));
+            updater::startup_complete(after_update);
             Ok(())
         })
         .on_window_event(|window, event| {

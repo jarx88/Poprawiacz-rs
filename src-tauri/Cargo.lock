@@ -2932,6 +2932,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "windows-sys 0.61.2",
  "winreg 0.56.0",
 ]
 
@@ -2946,9 +2947,11 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
+ "url",
 ]
 
 [[package]]

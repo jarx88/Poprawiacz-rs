@@ -53,6 +53,17 @@ Evergreen WebView2 runtime once.
 Set `"bundle": { "active": true }` in `tauri.conf.json` and rebuild;
 `pnpm tauri build` will then also emit `target/release/bundle/nsis/*.exe`.
 
+### Self-update (same mechanism as HyperRust)
+
+`scripts/publish-dev.sh` cross-builds the EXE on the NUC (`cargo xwin`) and
+publishes it with `latest.json` to `~/hyperrust-updates/poprawiacz/`, served by
+HyperRust's update server over Tailscale
+(`http://100.68.215.11:8790/poprawiacz/latest.json`). A running copy checks
+every 2 min, downloads and verifies (SHA-256) a newer build, and swaps itself
+only while the window is hidden in the tray and no correction started in the
+last minute; a build that fails to start is rolled back and skipped. Only EXEs
+built with the updater can update themselves: install the first one by hand.
+
 ## Quality gates (run before every PR)
 
 ```bash
