@@ -59,6 +59,15 @@ export const feLog = (message: string): void => {
 
 export const cancelSession = (): Promise<void> => invoke("cancel_session");
 
+export interface BuildInfo {
+  version: string;
+  build: string;
+  /** Unix seconds; a newer build has a later time. */
+  built_at: number;
+}
+
+export const getAppBuild = (): Promise<BuildInfo> => invoke("app_build");
+
 export const cancelProvider = (provider: Provider): Promise<void> =>
   invoke("cancel_provider", { provider });
 

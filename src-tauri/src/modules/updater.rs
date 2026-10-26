@@ -260,6 +260,12 @@ pub fn finish_pending_update(args: &[String]) -> bool {
     true
 }
 
+/// Build identity for the title bar, so the user can see an update landed.
+#[tauri::command]
+pub fn app_build() -> BuildInfo {
+    BUILD
+}
+
 /// The app is up: tell the guard, forget a previously failed build and remove
 /// the leftovers of the swap once the guard has released them.
 pub fn startup_complete(after_update: bool) {

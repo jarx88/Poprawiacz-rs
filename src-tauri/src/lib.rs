@@ -8,6 +8,7 @@ use modules::{ai, autostart, clipboard, config, hotkey, logging, tray, updater, 
 use poprawiacz_core::ai::build_client;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
+use tauri_plugin_window_state::StateFlags;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -31,7 +32,12 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Visibility is decided in `setup`, never restored from a saved state.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .build(),
+        )
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -51,9 +57,11 @@ pub fn run() {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_decorations(false);
                 let _ = win.set_shadow(true);
-                // Updates install only while the app sits in the tray; stay there.
-                if after_update {
-                    let _ = win.hide();
+                // The window starts hidden (no white flash of an empty webview).
+                // Updates install only while the app sits in the tray, so the
+                // new build stays there; a normal start shows the window.
+                if !after_update {
+                    let _ = win.show();
                 }
             }
             hotkey::register(app.handle());
@@ -90,6 +98,7 @@ pub fn run() {
             config::save_settings,
             config::remember_correction,
             config::migrate_config_ini,
+            updater::app_build,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
