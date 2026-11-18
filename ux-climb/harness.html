@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ux-climb harness</title>
+    <style>
+      /* Windows has no Inter, so the app renders in Segoe UI there. Selawik is its
+         metric-compatible open twin; aliasing it as "Inter" gives the same look here. */
+      @font-face { font-family: "Inter"; font-weight: 300; src: url("./fonts/selawkl.woff2"); }
+      @font-face { font-family: "Inter"; font-weight: 400; src: url("./fonts/selawk.woff2"); }
+      @font-face { font-family: "Inter"; font-weight: 600; src: url("./fonts/selawksb.woff2"); }
+      @font-face { font-family: "Inter"; font-weight: 700 900; src: url("./fonts/selawkb.woff2"); }
+      /* Freeze animations at one fixed frame so two captures are identical. */
+      *, *::before, *::after {
+        animation-play-state: paused !important;
+        animation-delay: -0.45s !important;
+        transition: none !important;
+        caret-color: transparent !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./harness.tsx"></script>
+  </body>
+</html>
