@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Icon } from "../../Icon";
 import {
   cancelProvider,
@@ -17,7 +17,9 @@ import {
   rememberCorrection,
   reprocessProvider,
   startCorrection,
+  writeClipboard,
 } from "../../lib/tauri";
+import { keyAction } from "./actions";
 import { OriginalTextModal } from "./OriginalTextModal";
 import { ProviderPanel } from "./ProviderPanel";
 import { useCorrectionStore } from "./store";
@@ -103,6 +105,38 @@ export function CorrectionView() {
       setNotice({ text: `Wklejanie nie powiodło się: ${e}` });
     }
   };
+
+  const onCopy = async (text: string) => {
+    try {
+      await writeClipboard(text);
+      setNotice({ text: "Skopiowano do schowka.", ok: true });
+    } catch (e) {
+      setNotice({ text: `Kopiowanie nie powiodło się: ${e}` });
+    }
+  };
+
+  // Keys 1–4 use that panel's result, Ctrl+Enter runs the correction. Not while
+  // a dialog is open: its fields and buttons own the keyboard then.
+  const onKey = useEffectEvent((e: KeyboardEvent) => {
+    if (document.querySelector(".modal")) return;
+    const inField = (e.target as Element).closest?.("input, textarea, select") != null;
+    const action = keyAction(e, inField);
+    if (action === null) return;
+    if (action === "run") {
+      e.preventDefault();
+      void runManual();
+      return;
+    }
+    const panel = panels[PROVIDERS[action]];
+    if (panel.status === "done" && panel.text.trim() !== "") {
+      e.preventDefault();
+      void onUse(panel.text);
+    }
+  });
+  useEffect(() => {
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const onLike = async (corrected: string, correctionStyle: Style): Promise<boolean> => {
     try {
@@ -199,6 +233,7 @@ export function CorrectionView() {
               and this one steps back. */}
           <button
             className={`cta${noSession ? "" : " cta--quiet"}`}
+            title="Popraw tekst (Ctrl+Enter)"
             onClick={runManual}
           >
             Popraw
@@ -207,14 +242,16 @@ export function CorrectionView() {
       </div>
 
       <div className={`grid${noSession ? " grid--empty" : ""}`}>
-        {PROVIDERS.map((p) => (
+        {PROVIDERS.map((p, i) => (
           <ProviderPanel
             key={p}
             provider={p}
+            shortcut={i + 1}
             state={panels[p]}
             originalText={originalText}
             highlightDiffs={highlightDiffs}
             onUse={onUse}
+            onCopy={onCopy}
             onLike={onLike}
             onCancel={(prov: Provider) => cancelOne(prov)}
             onReprocess={(prov: Provider, st: string) => reprocessProvider(prov, st)}

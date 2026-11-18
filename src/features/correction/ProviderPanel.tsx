@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { Icon } from "../../Icon";
+import { openSettings } from "../../lib/tauri";
 import { useEscape } from "../../lib/useEscape";
+import { isKeyError } from "./actions";
 import { diffWords } from "./diff";
 import { PanelState, Provider, PROVIDER_META, STYLE_LABELS, Style } from "./types";
 
 interface Props {
   provider: Provider;
+  /** The digit key that uses this panel's result. */
+  shortcut: number;
   state: PanelState;
   originalText: string;
   highlightDiffs: boolean;
   onUse: (text: string) => void;
+  onCopy: (text: string) => void;
   onLike: (text: string, style: Style) => Promise<boolean>;
   onCancel: (provider: Provider) => void;
   onReprocess: (provider: Provider, style: string) => void;
@@ -39,10 +44,12 @@ const REPROCESS_STYLES: Style[] = ["professional", "translate_en", "translate_pl
 
 export function ProviderPanel({
   provider,
+  shortcut,
   state,
   originalText,
   highlightDiffs,
   onUse,
+  onCopy,
   onLike,
   onCancel,
   onReprocess,
@@ -160,8 +167,8 @@ export function ProviderPanel({
             <button
               data-ux={`menu-${provider}`}
               className="icon-btn"
-              title="Przetwórz ponownie w innym stylu"
-              aria-label="Przetwórz ponownie w innym stylu"
+              title="Więcej akcji"
+              aria-label={`Więcej akcji: ${meta.label}`}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               disabled={state.status === "idle"}
@@ -175,6 +182,19 @@ export function ProviderPanel({
                 role="menu"
                 onMouseLeave={() => setMenuOpen(false)}
               >
+                {canUse && (
+                  <button
+                    role="menuitem"
+                    className="panel__menu-first"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onCopy(state.text);
+                    }}
+                  >
+                    Kopiuj tekst
+                    <Icon name="copy" size={14} />
+                  </button>
+                )}
                 <span className="panel__menu-label">Przetwórz ponownie jako</span>
                 {REPROCESS_STYLES.map((s) => (
                   <button
@@ -207,16 +227,24 @@ export function ProviderPanel({
           <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
             <Icon name="retry" /> Ponów {meta.label}
           </button>
+          {/* a missing or rejected key is fixed in settings, not by retrying */}
+          {isKeyError(state.error) && (
+            <button className="panel__use panel__use--retry" onClick={() => openSettings()}>
+              <Icon name="settings" /> Ustawienia
+            </button>
+          )}
         </div>
       )}
       {state.status === "done" && (
         <div className="panel__foot">
           <button
             className="panel__use"
+            title={`Wklej wersję ${meta.label} (klawisz ${shortcut})`}
             disabled={!canUse}
             onClick={() => onUse(state.text)}
           >
             Użyj {meta.label}
+            <kbd>{shortcut}</kbd>
           </button>
         </div>
       )}

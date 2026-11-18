@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   CancelEvent,
   ChunkEvent,
@@ -125,3 +125,6 @@ export const onHotkeyEmpty = (cb: () => void): Promise<UnlistenFn> =>
 
 export const onOpenSettings = (cb: () => void): Promise<UnlistenFn> =>
   listen("open-settings", () => cb());
+
+/** Open the settings dialog from anywhere in the UI (same event the tray sends). */
+export const openSettings = (): Promise<void> => emit("open-settings");
