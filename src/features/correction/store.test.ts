@@ -113,10 +113,12 @@ describe("correction store session isolation", () => {
     expect(store().panels.openai.status).toBe("cancelled");
   });
 
-  it("keeps a fast failure when the same session is started again", () => {
+  it("keeps a fast failure when the same or an older session is started again", () => {
     store().startSession(11, "x");
     store().applyError({ session_id: 11, provider: "openai", attempt: 0, message: "brak klucza" });
     store().startSession(11, "x");
+    store().startSession(10, "late answer");
+    expect(store().sessionId).toBe(11);
     expect(store().panels.openai.status).toBe("error");
   });
 });

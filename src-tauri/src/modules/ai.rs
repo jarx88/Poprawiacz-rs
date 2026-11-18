@@ -213,12 +213,14 @@ pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Re
         .last_activity_s
         .store(updater::now_s(), std::sync::atomic::Ordering::SeqCst);
     let token = CancellationToken::new();
-    {
+    // The attempt number is taken under the same lock as the token swap, so the
+    // newer token always has the higher number.
+    let attempt = {
         let mut guard = state.cancel.lock().expect("cancel mutex poisoned");
         guard.cancel_one(p);
         guard.tokens.insert(p, token.clone());
-    }
-    let attempt = state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+    };
     let _ = app.emit(
         "provider-restarted",
         json!({ "session_id": session_id, "attempt": attempt, "provider": p }),

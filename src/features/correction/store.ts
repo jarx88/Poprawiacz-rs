@@ -23,8 +23,8 @@ export interface CorrectionState {
   originalText: string;
   panels: Record<Provider, PanelState>;
 
-  /** Begin a new session; every panel resets to loading. A repeated start of
-   *  the session already shown changes nothing. */
+  /** Begin a new session; every panel resets to loading. Starting the session
+   *  already shown, or an older one, changes nothing (ids only grow). */
   startSession: (sessionId: number, text: string) => void;
   /** Append a streaming delta (ignored if stale). */
   applyChunk: (e: ChunkEvent) => void;
@@ -61,8 +61,9 @@ export const useCorrectionStore = create<CorrectionState>((set, get) => ({
 
   startSession: (sessionId, text) => {
     // "Popraw" starts the session from the backend event and from the command's
-    // answer, whichever comes first; the second must not undo a fast failure.
-    if (sessionId === get().sessionId) return;
+    // answer, whichever comes first; the second must not undo a fast failure,
+    // and a late answer must not bring back a session the hotkey has replaced.
+    if (sessionId <= get().sessionId) return;
     set({ sessionId, originalText: text, panels: allPanels("loading") });
   },
 
