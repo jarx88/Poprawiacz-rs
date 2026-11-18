@@ -7,6 +7,7 @@ pub mod anthropic;
 pub mod deepseek;
 pub mod error;
 pub mod gemini;
+pub mod models;
 pub mod openai;
 pub mod retry;
 pub mod types;

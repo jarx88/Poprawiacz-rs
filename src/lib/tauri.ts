@@ -98,6 +98,15 @@ export const saveSettings = (payload: SaveSettingsPayload): Promise<void> =>
 export const migrateConfigIni = (path: string): Promise<number> =>
   invoke("migrate_config_ini", { path });
 
+/** The provider's current model names. `apiKey` is a key typed into the dialog
+ *  but not saved yet; without it the backend uses the stored one. */
+export const listModels = (provider: Provider, apiKey?: string): Promise<string[]> =>
+  invoke("list_models", { provider, apiKey });
+
+/** Open a web page in the system browser (the opener plugin's command). */
+export const openUrl = (url: string): Promise<void> =>
+  invoke("plugin:opener|open_url", { url });
+
 // --- events -----------------------------------------------------------------
 
 export const onSessionStarted = (
