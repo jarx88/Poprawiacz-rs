@@ -572,6 +572,12 @@ input[type="checkbox"] {
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
+/* the copy action stands apart from the re-run group below it */
+.panel__menu-first + .panel__menu-label {
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
 .panel__menu button {
   justify-content: space-between;
   background: transparent;
@@ -711,6 +717,7 @@ input[type="checkbox"] {
 .panel__foot {
   flex: 0 0 auto;
   display: flex;
+  gap: 8px;
   padding: 10px 12px 12px;
   border-top: 1px solid color-mix(in srgb, var(--pc) 20%, var(--border-soft));
 }
@@ -727,6 +734,12 @@ input[type="checkbox"] {
   font-size: var(--fs-md);
   background: color-mix(in srgb, var(--pc) 72%, #fff);
   color: #111;
+}
+/* the digit key that does the same as a click */
+.panel__use kbd {
+  padding: 0 6px;
+  color: inherit;
+  border-color: rgba(0, 0, 0, 0.4);
 }
 .panel__use:hover:not(:disabled) {
   background: color-mix(in srgb, var(--pc) 58%, #fff);
