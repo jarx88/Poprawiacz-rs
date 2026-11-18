@@ -14,7 +14,7 @@ export interface ValidationResult {
 /** Loose per-provider sanity checks for pasted API keys. */
 export function validateApiKey(provider: Provider, key: string): string | null {
   const k = key.trim();
-  if (k === "") return null; // empty = leave unchanged / clear
+  if (k === "") return null; // empty = leave the stored key unchanged
   if (k.length < 10) return "Klucz wygląda na zbyt krótki";
   // an Anthropic key also starts with "sk-": it must not pass for the others
   const plainSk = k.startsWith("sk-") && !k.startsWith("sk-ant-");

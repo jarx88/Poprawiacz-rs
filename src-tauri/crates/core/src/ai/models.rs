@@ -75,13 +75,16 @@ pub fn parse_models(provider: Provider, body: &Value) -> Vec<String> {
             .filter_map(|m| m["id"].as_str())
             .filter(|id| match provider {
                 Provider::OpenAI => {
-                    // a fine-tuned model ("ft:gpt-4o-mini:org::id") goes by its base
-                    let base = id.strip_prefix("ft:").unwrap_or(id);
+                    // a fine-tuned model ("ft:gpt-4o-mini:org:name:id") is judged by its
+                    // base model alone: the rest is the customer's own naming
+                    let base = id
+                        .strip_prefix("ft:")
+                        .map_or(*id, |rest| rest.split(':').next().unwrap_or(rest));
                     let chat = base.starts_with("gpt-")
                         || base.starts_with("chatgpt-")
                         // the reasoning families: o1, o3, o4-mini…
                         || (base.starts_with('o') && base[1..].starts_with(|c: char| c.is_ascii_digit()));
-                    chat && text_model(id)
+                    chat && text_model(base)
                 }
                 _ => true,
             })
@@ -103,11 +106,11 @@ mod tests {
             { "id": "gpt-5-mini" }, { "id": "o4-mini" }, { "id": "chatgpt-4o-latest" },
             { "id": "gpt-4o-audio-preview" }, { "id": "gpt-4o-mini-tts" }, { "id": "gpt-image-1" },
             { "id": "text-embedding-3-small" }, { "id": "whisper-1" }, { "id": "omni-moderation-latest" },
-            { "id": "ft:gpt-4o-mini:org::abc" },
+            { "id": "ft:gpt-4o-mini:acme-research::abc" },
         ]});
         assert_eq!(
             parse_models(Provider::OpenAI, &body),
-            ["chatgpt-4o-latest", "ft:gpt-4o-mini:org::abc", "gpt-5-mini", "o4-mini"]
+            ["chatgpt-4o-latest", "ft:gpt-4o-mini:acme-research::abc", "gpt-5-mini", "o4-mini"]
         );
     }
 
