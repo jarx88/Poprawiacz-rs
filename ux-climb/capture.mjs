@@ -39,6 +39,10 @@ const STATES = {
   // a failure notice stays until the next session; a menu closes when focus leaves it
   "idle-notice": [1100, 760],
   "menu-blur": [1100, 760],
+  // the dialogs are native: focus handling, and Escape as a real key press
+  "original-focus": [1100, 760],
+  "original-esc": [1100, 760],
+  "settings-esc": [1100, 760],
 };
 
 mkdirSync(out, { recursive: true });
@@ -132,6 +136,15 @@ for (const [state, [width, height]] of Object.entries(STATES)) {
   } catch (e) {
     const where = await evaluate("location.href + ' | ' + document.body.innerText.slice(0, 300)");
     throw new Error(`state ${state} never became ready (${where})`, { cause: e });
+  }
+  if (state.endsWith("-esc")) {
+    // sent through the browser: a native dialog ignores synthetic key events
+    for (const type of ["keyDown", "keyUp"])
+      await cdp("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    const open = await evaluate(
+      "new Promise((r) => setTimeout(() => r(document.querySelectorAll('dialog').length), 150))",
+    );
+    if (open) throw new Error(`Escape left a dialog open in ${state}`);
   }
   metrics[state] = await evaluate("window.__uxMetrics()");
   // let the last state change reach the screen before the shot

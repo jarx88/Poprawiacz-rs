@@ -1,6 +1,6 @@
 import { Icon } from "../../Icon";
 import { writeClipboard } from "../../lib/tauri";
-import { useEscape } from "../../lib/useEscape";
+import { useModal } from "../../lib/useModal";
 
 interface Props {
   text: string;
@@ -8,13 +8,13 @@ interface Props {
 }
 
 export function OriginalTextModal({ text, onClose }: Props) {
-  useEscape(onClose);
+  const { ref, close } = useModal();
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-label="Oryginalny tekst">
+    <dialog ref={ref} className="modal" aria-label="Oryginalny tekst" onClose={onClose}>
       <div className="modal__card">
         <header className="modal__head">
           <h2>Oryginalny tekst</h2>
-          <button className="icon-btn" title="Zamknij" aria-label="Zamknij" onClick={onClose}>
+          <button className="icon-btn" title="Zamknij" aria-label="Zamknij" onClick={close}>
             <Icon name="close" />
           </button>
         </header>
@@ -23,7 +23,7 @@ export function OriginalTextModal({ text, onClose }: Props) {
             className="original__text"
             aria-label="Oryginalny tekst"
             readOnly
-            autoFocus
+            data-focus
             value={text}
           />
         </div>
@@ -32,11 +32,11 @@ export function OriginalTextModal({ text, onClose }: Props) {
             <Icon name="copy" /> Kopiuj
           </button>
           <span className="spacer" />
-          <button className="primary" onClick={onClose}>
+          <button className="primary" onClick={close}>
             Zamknij
           </button>
         </footer>
       </div>
-    </div>
+    </dialog>
   );
 }

@@ -781,6 +781,16 @@ input[type="checkbox"] {
   padding: 20px;
   z-index: 50;
 }
+/* a native <dialog> is the overlay itself: undo the box the browser gives it */
+dialog.modal {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+}
 .modal__card {
   display: flex;
   flex-direction: column;

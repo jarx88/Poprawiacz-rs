@@ -6,7 +6,7 @@ import {
   migrateConfigIni,
   saveSettings,
 } from "../../lib/tauri";
-import { useEscape } from "../../lib/useEscape";
+import { useModal } from "../../lib/useModal";
 import { PROVIDERS, PROVIDER_META, Provider, STYLES, STYLE_LABELS } from "../correction/types";
 import { validateSettings } from "./validation";
 
@@ -54,7 +54,7 @@ export default function SettingsDialog({ onClose }: Props) {
   const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [status, setStatus] = useState<string>("");
-  useEscape(onClose);
+  const { ref, close } = useModal();
 
   const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
     setModels({
@@ -92,7 +92,7 @@ export default function SettingsDialog({ onClose }: Props) {
         clipboard_delay_ms: clipboardDelayMs,
         api_keys: apiKeys,
       });
-      onClose();
+      close();
     } catch (e) {
       setStatus(`Błąd zapisu: ${e}`);
     }
@@ -111,7 +111,7 @@ export default function SettingsDialog({ onClose }: Props) {
   };
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-label="Ustawienia">
+    <dialog ref={ref} className="modal" aria-label="Ustawienia" onClose={onClose}>
       <div className="modal__card modal__card--wide">
         <header className="modal__head">
           <h2>Ustawienia</h2>
@@ -119,8 +119,7 @@ export default function SettingsDialog({ onClose }: Props) {
             className="icon-btn"
             title="Zamknij bez zapisywania"
             aria-label="Zamknij bez zapisywania"
-            autoFocus
-            onClick={onClose}
+            onClick={close}
           >
             <Icon name="close" />
           </button>
@@ -283,12 +282,12 @@ export default function SettingsDialog({ onClose }: Props) {
           <span className="modal__status" role="status">
             {status}
           </span>
-          <button onClick={onClose}>Anuluj</button>
+          <button onClick={close}>Anuluj</button>
           <button className="primary" onClick={save}>
             Zapisz
           </button>
         </footer>
       </div>
-    </div>
+    </dialog>
   );
 }
