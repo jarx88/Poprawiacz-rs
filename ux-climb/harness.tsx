@@ -136,6 +136,7 @@ async function main() {
           Object.entries(SETTINGS.openrouter_models).map(([p, id]) => [p, [id, `${id}-pro`]]),
         );
       if (cmd === "remember_correction") return 2;
+      if (cmd === "migrate_config_ini") return 4;
       return undefined;
     },
     { shouldMockEvents: true },
@@ -213,6 +214,12 @@ async function main() {
     if (!active()?.matches('[data-ux="original"]')) throw new Error("focus did not return to the opener");
   }
   if (variant === "models") {
+    // a migration may replace the keys: the lists they fetched are fetched again
+    delete calls.list_models;
+    window.prompt = () => "config.ini";
+    click('[data-ux="migrate"]');
+    await sleep(100);
+    if (!calls.list_models) throw new Error("the migration kept the old keys' model lists");
     // the fetched list is a select; one toggle switches to a text field and back
     const card = document.querySelector(".provider-card")!; // OpenAI
     const names = [...card.querySelector("select")!.options].map((o) => o.textContent);
