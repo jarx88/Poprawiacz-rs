@@ -3,12 +3,14 @@ import { Icon } from "../../Icon";
 import {
   AiSettings,
   getSettings,
+  listModels,
   migrateConfigIni,
+  openUrl,
   saveSettings,
 } from "../../lib/tauri";
 import { useModal } from "../../lib/useModal";
 import { PROVIDERS, PROVIDER_META, Provider, STYLES, STYLE_LABELS } from "../correction/types";
-import { validateSettings } from "./validation";
+import { validateApiKey, validateSettings } from "./validation";
 
 interface Props {
   onClose: () => void;
@@ -28,6 +30,16 @@ const KEY_HINTS: Record<Provider, string> = {
   deepseek: "platform.deepseek.com/api_keys",
 };
 
+/** Where each provider publishes its model names. */
+const MODEL_DOCS: Record<Provider, string> = {
+  openai: "https://platform.openai.com/docs/models",
+  anthropic: "https://docs.anthropic.com/en/docs/about-claude/models",
+  gemini: "https://ai.google.dev/gemini-api/docs/models",
+  deepseek: "https://api-docs.deepseek.com/quick_start/pricing",
+};
+/** The select's last option: switch this provider to a typed model name. */
+const MANUAL = "\u0000manual";
+
 const LEVELS = ["off", "low", "medium", "high", "max"] as const;
 const LEVEL_LABELS: Record<string, string> = {
   off: "Off (najszybciej)",
@@ -37,6 +49,34 @@ const LEVEL_LABELS: Record<string, string> = {
   max: "Max",
 };
 const VERBOSITIES = ["low", "medium", "high"];
+
+/** The model name: a choice from the provider's list once it is fetched, a text
+ *  field until then, without a key, or after "Wpisz ręcznie…". */
+function ModelField(props: {
+  value: string;
+  list: string[] | string | undefined;
+  onChange: (model: string) => void;
+  onManual: () => void;
+}) {
+  const { value, list, onChange, onManual } = props;
+  if (!Array.isArray(list))
+    return <input value={value} onChange={(e) => onChange(e.target.value)} />;
+  // the saved name stays selectable even when the provider no longer lists it
+  const options = list.includes(value) ? list : [value, ...list];
+  return (
+    <select
+      value={value}
+      onChange={(e) => (e.target.value === MANUAL ? onManual() : onChange(e.target.value))}
+    >
+      {options.map((id) => (
+        <option key={id} value={id}>
+          {id || "— wybierz model —"}
+        </option>
+      ))}
+      <option value={MANUAL}>Wpisz ręcznie…</option>
+    </select>
+  );
+}
 
 export default function SettingsDialog({ onClose }: Props) {
   const [models, setModels] = useState<Record<Provider, string>>(emptyModels());
@@ -54,7 +94,16 @@ export default function SettingsDialog({ onClose }: Props) {
   const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [status, setStatus] = useState<string>("");
+  // per provider: the fetched model names, or why they could not be fetched
+  const [modelLists, setModelLists] = useState<Partial<Record<Provider, string[] | string>>>({});
+  const [manual, setManual] = useState<Partial<Record<Provider, boolean>>>({});
   const { ref, close } = useModal();
+
+  const loadModels = (p: Provider, apiKey?: string) =>
+    listModels(p, apiKey)
+      .then((list) => (list.length ? list : "Dostawca nie zwrócił żadnego modelu."))
+      .catch((e) => String(e))
+      .then((result) => setModelLists((l) => ({ ...l, [p]: result })));
 
   const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
     setModels({
@@ -70,6 +119,7 @@ export default function SettingsDialog({ onClose }: Props) {
     setAi({ ...s.ai_settings, system_prompt: s.ai_settings.system_prompt ?? "" });
     setDefaultPrompt(s.default_system_prompt);
     setKeysPresent(s.keys_present ?? {});
+    for (const p of PROVIDERS) if (s.keys_present?.[p]) void loadModels(p);
   };
 
   useEffect(() => {
@@ -217,13 +267,34 @@ export default function SettingsDialog({ onClose }: Props) {
                   </div>
                   <label className="field">
                     Model
-                    <input
+                    <ModelField
                       value={models[p]}
-                      onChange={(e) => setModels((m) => ({ ...m, [p]: e.target.value }))}
+                      list={manual[p] ? undefined : modelLists[p]}
+                      onChange={(model) => setModels((m) => ({ ...m, [p]: model }))}
+                      onManual={() => setManual((m) => ({ ...m, [p]: true }))}
                     />
                     {errors[`model.${p}`] && (
                       <span className="field__err">{errors[`model.${p}`]}</span>
                     )}
+                    <span className="field__hint">
+                      {typeof modelLists[p] === "string" && (
+                        <>Lista modeli niedostępna: {modelLists[p]} </>
+                      )}
+                      <button className="link" onClick={() => openUrl(MODEL_DOCS[p])}>
+                        Nazwy modeli u dostawcy
+                      </button>
+                      {manual[p] && (
+                        <>
+                          {" · "}
+                          <button
+                            className="link"
+                            onClick={() => setManual((m) => ({ ...m, [p]: false }))}
+                          >
+                            Wybierz z listy
+                          </button>
+                        </>
+                      )}
+                    </span>
                   </label>
                   <label className="field">
                     Klucz API
@@ -232,6 +303,11 @@ export default function SettingsDialog({ onClose }: Props) {
                       placeholder={keysPresent[p] ? "•••••••• bez zmian" : "wklej klucz"}
                       value={apiKeys[p] ?? ""}
                       onChange={(e) => setApiKeys((k) => ({ ...k, [p]: e.target.value }))}
+                      // a freshly pasted key can list the models before it is saved
+                      onBlur={(e) => {
+                        const key = e.target.value.trim();
+                        if (key && !validateApiKey(p, key)) void loadModels(p, key);
+                      }}
                     />
                     <span className="field__hint">Skąd wziąć: {KEY_HINTS[p]}</span>
                     {errors[`key.${p}`] && (

@@ -43,6 +43,8 @@ const STATES = {
   "original-focus": [1100, 760],
   "original-esc": [1100, 760],
   "settings-esc": [1100, 760],
+  // the model name is chosen from the provider's fetched list
+  "settings-models": [1100, 760],
 };
 
 mkdirSync(out, { recursive: true });

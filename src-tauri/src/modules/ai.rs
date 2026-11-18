@@ -229,6 +229,27 @@ pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Re
     Ok(())
 }
 
+/// The provider's current model names, for the list in settings. `api_key` is a
+/// key typed into the dialog but not saved yet; without it the stored one is used.
+#[tauri::command]
+pub async fn list_models(
+    app: AppHandle,
+    provider: Provider,
+    api_key: Option<String>,
+) -> Result<Vec<String>, String> {
+    let key = api_key
+        .filter(|k| !k.trim().is_empty())
+        .or_else(|| config::get_api_key(provider))
+        .ok_or("Brak klucza API.")?;
+    let http = app.state::<AppState>().http.clone();
+    ai::models::list_models(&http, provider, key.trim())
+        .await
+        .map_err(|e| {
+            tracing::warn!(provider = provider.key(), "list models: {e}");
+            e.user_message()
+        })
+}
+
 /// Cancel all in-flight providers (the "Anuluj wszystko" button).
 #[tauri::command]
 pub fn cancel_session(app: AppHandle) {

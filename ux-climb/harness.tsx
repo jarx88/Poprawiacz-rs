@@ -117,6 +117,13 @@ async function main() {
       if (cmd === "app_build")
         return { version: "0.1.0", build: "113b018", built_at: 1793044080 };
       if (cmd === "get_settings") return SETTINGS;
+      if (cmd === "list_models") {
+        const { provider } = payload as { provider: Provider };
+        // Gemini's list fails: the field stays a text input and says why
+        if (provider === "gemini")
+          throw "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach. (HTTP 401)";
+        return [SETTINGS.models[provider], `${provider}-nowszy-model`];
+      }
       if (cmd === "remember_correction") return 2;
       return undefined;
     },
@@ -193,6 +200,18 @@ async function main() {
     await sleep(100);
     if (document.querySelector("dialog")) throw new Error("the dialog did not close");
     if (!active()?.matches('[data-ux="original"]')) throw new Error("focus did not return to the opener");
+  }
+  if (variant === "models") {
+    // the fetched list is a select; its last option gives the text field back
+    const card = document.querySelector(".provider-card")!; // OpenAI
+    const select = card.querySelector("select")!;
+    const names = [...select.options].map((o) => o.textContent);
+    if (!names.includes("openai-nowszy-model")) throw new Error(`no fetched models: ${names}`);
+    select.value = select.options[select.options.length - 1].value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(50);
+    if (!card.querySelector('label input:not([type="password"])'))
+      throw new Error('"Wpisz ręcznie…" did not bring the text field back');
   }
   await document.fonts.ready;
 }

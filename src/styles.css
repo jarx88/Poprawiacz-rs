@@ -900,6 +900,21 @@ dialog.modal:not([open]) {
 .field__hint {
   font-size: var(--fs-xs);
   color: var(--muted);
+  white-space: normal;
+}
+/* a text link inside a hint */
+button.link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.link:hover {
+  color: var(--text);
 }
 .provider-card {
   display: flex;
