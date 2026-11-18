@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Icon } from "../../Icon";
 import {
   cancelProvider,
@@ -98,11 +98,18 @@ export function CorrectionView() {
     startSession(id, text);
   };
 
+  // One paste at a time, for the button and the shortcut alike: a second call
+  // would overwrite the clipboard before the first Ctrl+V lands.
+  const pasting = useRef(false);
   const onUse = async (text: string) => {
+    if (pasting.current) return;
+    pasting.current = true;
     try {
       await pasteText(text);
     } catch (e) {
       setNotice({ text: `Wklejanie nie powiodło się: ${e}` });
+    } finally {
+      pasting.current = false;
     }
   };
 
@@ -116,9 +123,9 @@ export function CorrectionView() {
   };
 
   // Keys 1–4 use that panel's result, Ctrl+Enter runs the correction. Not while
-  // a dialog is open: its fields and buttons own the keyboard then.
+  // a dialog or a panel menu is open: they own the keyboard then.
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    if (document.querySelector(".modal")) return;
+    if (document.querySelector(".modal, .panel__menu")) return;
     const inField = (e.target as Element).closest?.("input, textarea, select") != null;
     const action = keyAction(e, inField);
     if (action === null) return;
@@ -134,8 +141,9 @@ export function CorrectionView() {
     }
   });
   useEffect(() => {
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const listener = (e: KeyboardEvent) => onKey(e);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
   }, []);
 
   const onLike = async (corrected: string, correctionStyle: Style): Promise<boolean> => {
@@ -216,7 +224,7 @@ export function CorrectionView() {
                 title={notice.text}
               >
                 <Icon name={notice.ok ? "check" : "alert"} size={14} />
-                {notice.text}
+                <span>{notice.text}</span>
               </span>
             )}
           </span>

@@ -169,22 +169,18 @@ export function ProviderPanel({
               className="icon-btn"
               title="Więcej akcji"
               aria-label={`Więcej akcji: ${meta.label}`}
-              aria-haspopup="menu"
               aria-expanded={menuOpen}
               disabled={state.status === "idle"}
               onClick={() => setMenuOpen((o) => !o)}
             >
               <Icon name="more" />
             </button>
+            {/* a plain group of buttons: no ARIA menu role, which would promise
+                arrow-key navigation this list does not have */}
             {menuOpen && (
-              <div
-                className="panel__menu"
-                role="menu"
-                onMouseLeave={() => setMenuOpen(false)}
-              >
+              <div className="panel__menu" onMouseLeave={() => setMenuOpen(false)}>
                 {canUse && (
                   <button
-                    role="menuitem"
                     className="panel__menu-first"
                     onClick={() => {
                       setMenuOpen(false);
@@ -199,7 +195,6 @@ export function ProviderPanel({
                 {REPROCESS_STYLES.map((s) => (
                   <button
                     key={s}
-                    role="menuitem"
                     onClick={() => {
                       setMenuOpen(false);
                       onReprocess(provider, s);

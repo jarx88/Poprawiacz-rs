@@ -1,10 +1,13 @@
 /** What a key press in the main view means: a number is the index of the panel
  *  whose result to use (keys 1–4), "run" starts a correction (Ctrl+Enter). */
 export function keyAction(
-  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "metaKey" | "repeat">,
+  e: Pick<
+    KeyboardEvent,
+    "key" | "ctrlKey" | "altKey" | "metaKey" | "shiftKey" | "repeat" | "isComposing"
+  >,
   inField: boolean,
 ): number | "run" | null {
-  if (e.repeat || e.altKey || e.metaKey) return null;
+  if (e.repeat || e.isComposing || e.altKey || e.metaKey || e.shiftKey) return null;
   if (e.ctrlKey) return e.key === "Enter" ? "run" : null;
   if (inField) return null; // digits typed into a text field are just text
   const i = ["1", "2", "3", "4"].indexOf(e.key);

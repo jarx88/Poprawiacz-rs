@@ -133,7 +133,8 @@ async function main() {
   }
   // Interactions go through data-ux hooks so restyling does not break the harness.
   if (state === "errors") click('[data-ux="like-openai"]');
-  if (state === "menu") click('[data-ux="menu-anthropic"]');
+  if (state === "menu")
+    click(`[data-ux="menu-${variant === "low" ? "deepseek" : "anthropic"}"]`);
   if (state === "original") click('[data-ux="original"]');
   if (state === "settings") await emit("open-settings");
   // The settings dialog is a lazy chunk that then loads its data: wait for it.
@@ -150,8 +151,10 @@ async function main() {
     press({ key: "Enter", ctrlKey: true });
     await sleep(100);
     const pasted = (calls.paste_text as { text?: string } | undefined)?.text;
-    if (pasted !== FIXED.anthropic || !("start_correction" in calls))
-      throw new Error(`shortcuts did not fire: ${JSON.stringify(Object.keys(calls))}`);
+    const ran = "start_correction" in calls;
+    // with a panel menu open the keys must do nothing; otherwise both must fire
+    const ok = state === "menu" ? !pasted && !ran : pasted === FIXED.anthropic && ran;
+    if (!ok) throw new Error(`shortcuts misbehaved in "${state}": ${Object.keys(calls)}`);
   }
   await document.fonts.ready;
 }
