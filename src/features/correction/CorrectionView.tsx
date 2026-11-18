@@ -106,6 +106,7 @@ export function CorrectionView() {
   const onUse = async (text: string) => {
     if (pasting.current) return;
     pasting.current = true;
+    setNotice(null);
     try {
       await pasteText(text);
     } catch (e) {
@@ -168,6 +169,11 @@ export function CorrectionView() {
   const cancelAll = () => {
     PROVIDERS.forEach((p) => applyCancelled({ session_id: sessionId, provider: p }));
     cancelSession();
+  };
+
+  const reprocess = (prov: Provider, st: string) => {
+    setNotice(null);
+    reprocessProvider(prov, st);
   };
 
   const anyBusy = PROVIDERS.some((p) =>
@@ -264,8 +270,8 @@ export function CorrectionView() {
             onCopy={onCopy}
             onLike={onLike}
             onCancel={(prov: Provider) => cancelOne(prov)}
-            onReprocess={(prov: Provider, st: string) => reprocessProvider(prov, st)}
-            onRetry={(prov: Provider) => reprocessProvider(prov, style)}
+            onReprocess={reprocess}
+            onRetry={(prov: Provider) => reprocess(prov, style)}
           />
         ))}
       </div>
