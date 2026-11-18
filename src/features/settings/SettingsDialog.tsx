@@ -112,11 +112,12 @@ export default function SettingsDialog({ onClose }: Props) {
   // (stored key) can come back after a newer one (key just typed).
   const requests = useRef<Partial<Record<Provider, number>>>({});
   const typedKey = (p: Provider) => (apiKeys[p] ?? "").trim();
-  /** The typed key was removed again: back to what the stored key lists. */
+  /** The typed key was removed again: its list goes at once, then comes what
+   *  the stored key lists. */
   const restoreModels = (p: Provider) => {
-    if (keysPresent[p]) return void loadModels(p);
     requests.current[p] = (requests.current[p] ?? 0) + 1; // drop a pending answer
     setModelLists((l) => ({ ...l, [p]: undefined }));
+    if (keysPresent[p]) void loadModels(p);
   };
   const loadModels = (p: Provider, apiKey?: string) => {
     const request = (requests.current[p] = (requests.current[p] ?? 0) + 1);
