@@ -32,7 +32,8 @@ const KEY_HINTS: Record<Provider, string> = {
   deepseek: "platform.deepseek.com/api_keys",
 };
 
-/** Where each provider publishes its model names. */
+/** Where each provider publishes its model names. The app may open only the
+ *  links listed in src-tauri/capabilities/default.json: change both together. */
 const MODEL_DOCS: Record<Provider, string> = {
   openai: "https://platform.openai.com/docs/models",
   anthropic: "https://docs.anthropic.com/en/docs/about-claude/models",

@@ -28,9 +28,33 @@ use tokio_util::sync::CancellationToken;
 /// Fixed backoff between retries.
 pub const RETRY_BACKOFF: Duration = Duration::from_millis(800);
 
-/// Build a shared HTTP client with the common connect timeout.
+/// Build a shared HTTP client with the common connect timeout. Redirects are
+/// refused: no provider API uses them, and the key headers (`x-api-key`,
+/// `x-goog-api-key`) would travel on to whatever host one points at.
 pub fn build_client() -> Result<Client, reqwest::Error> {
-    Client::builder().connect_timeout(CONNECT_TIMEOUT).build()
+    Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+}
+
+/// The error a provider answered with. A cancel while its text is still
+/// arriving stays a cancel instead of turning into that error.
+async fn error_response(
+    resp: reqwest::Response,
+    provider: Provider,
+    cancel: &CancellationToken,
+) -> AiError {
+    let status = resp.status().as_u16();
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => AiError::Cancelled { provider: provider.key().into() },
+        txt = resp.text() => AiError::Response {
+            provider: provider.key().into(),
+            status: Some(status),
+            message: error::provider_detail(&txt.unwrap_or_default()),
+        },
+    }
 }
 
 fn build_request(client: &Client, req: &CorrectionRequest) -> RequestBuilder {
@@ -120,14 +144,8 @@ async fn send_once(
         r = request.send() => r.map_err(|e| AiError::from_reqwest(provider.key(), timeout.as_secs(), &e))?,
     };
 
-    let status = resp.status();
-    if !status.is_success() {
-        let txt = resp.text().await.unwrap_or_default();
-        return Err(AiError::Response {
-            provider: provider.key().into(),
-            status: Some(status.as_u16()),
-            message: error::provider_detail(&txt),
-        });
+    if !resp.status().is_success() {
+        return Err(error_response(resp, provider, cancel).await);
     }
 
     // reqwest's request timeout only covers connect+headers; bound the body
@@ -292,14 +310,8 @@ async fn stream_once<F: FnMut(&str)>(
         r = request.send() => r.map_err(|e| AiError::from_reqwest(provider.key(), timeout.as_secs(), &e))?,
     };
 
-    let status = resp.status();
-    if !status.is_success() {
-        let txt = resp.text().await.unwrap_or_default();
-        return Err(AiError::Response {
-            provider: provider.key().into(),
-            status: Some(status.as_u16()),
-            message: error::provider_detail(&txt),
-        });
+    if !resp.status().is_success() {
+        return Err(error_response(resp, provider, cancel).await);
     }
 
     let mut stream = resp.bytes_stream();
@@ -388,9 +400,45 @@ mod tests {
         assert!(fallback_request(&req).is_none());
     }
 
-    #[test]
-    fn client_builds() {
-        assert!(build_client().is_ok());
+    /// A server for one connection: answers with `response`, then keeps the
+    /// socket open without sending anything more.
+    async fn serve(response: &'static str) -> reqwest::Response {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let _ = sock.read(&mut [0u8; 1024]).await;
+            sock.write_all(response.as_bytes()).await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let request = build_client().unwrap().get(format!("http://{addr}/")).send();
+        tokio::time::timeout(Duration::from_secs(5), request).await.expect("no answer").unwrap()
+    }
+
+    #[tokio::test]
+    async fn redirects_are_not_followed() {
+        let resp = serve("HTTP/1.1 302 Found\r\nLocation: /elsewhere\r\nContent-Length: 0\r\n\r\n").await;
+        assert_eq!(resp.status(), 302);
+    }
+
+    #[tokio::test]
+    async fn cancel_during_an_error_body_stays_a_cancel() {
+        // the headers of an error, then a body that never arrives
+        let resp = serve("HTTP/1.1 500 Internal Server Error\r\nContent-Length: 10\r\n\r\n").await;
+        let cancel = CancellationToken::new();
+        let later = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            later.cancel();
+        });
+        let err = tokio::time::timeout(
+            Duration::from_secs(5),
+            error_response(resp, Provider::OpenAI, &cancel),
+        )
+        .await
+        .expect("the error body read ignored the cancel");
+        assert!(matches!(err, AiError::Cancelled { .. }), "{err}");
     }
 
     #[test]
