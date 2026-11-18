@@ -98,7 +98,9 @@ pub fn load_settings(app: &AppHandle) -> AppSettings {
 pub fn persist_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
     let path = settings_path(app)?;
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())
+    // via a temp file: a crash mid-write must not leave half a settings.json,
+    // which would load as the defaults
+    poprawiacz_core::update::write_atomically(&path, json.as_bytes()).map_err(|e| e.to_string())
 }
 
 // --- Keychain (secrets) -----------------------------------------------------

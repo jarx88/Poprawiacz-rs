@@ -165,10 +165,12 @@ pub fn run_correction(app: &AppHandle, text: String, style: Style) -> u64 {
             tokens.insert(provider, CancellationToken::new());
         }
         guard.tokens = tokens.clone();
+        // Remember the input so a single panel can be reprocessed later. Under
+        // the same lock: a reprocess must never pair the previous session's
+        // text with this session's tokens.
+        *state.last_input.lock().expect("last_input poisoned") =
+            Some((session_id, text.clone(), style));
     }
-    // Remember the input so a single panel can be reprocessed later.
-    *state.last_input.lock().expect("last_input poisoned") =
-        Some((session_id, text.clone(), style));
 
     let _ = app.emit(
         "session-started",
@@ -211,26 +213,23 @@ pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Re
         return Err(format!("unknown provider: {provider}"));
     };
     let state = app.state::<AppState>();
-    let (session_id, text) = {
-        let guard = state.last_input.lock().expect("last_input poisoned");
-        let Some((sid, text, _)) = guard.as_ref() else {
-            return Err("no active session".into());
-        };
-        (*sid, text.clone())
-    };
-
-    // Fresh token for this provider; cancel its previous in-flight task.
     state
         .last_activity_s
         .store(updater::now_s(), std::sync::atomic::Ordering::SeqCst);
+    // Fresh token for this provider; cancel its previous in-flight task. The
+    // session's input is read and the attempt number taken under the same lock
+    // as the token swap: the token replaced always belongs to the session that
+    // is reprocessed, and the newer token always has the higher number.
     let token = CancellationToken::new();
-    // The attempt number is taken under the same lock as the token swap, so the
-    // newer token always has the higher number.
-    let attempt = {
+    let (session_id, text, attempt) = {
         let mut guard = state.cancel.lock().expect("cancel mutex poisoned");
+        let (session_id, text) = match state.last_input.lock().expect("last_input poisoned").as_ref() {
+            Some((sid, text, _)) => (*sid, text.clone()),
+            None => return Err("no active session".into()),
+        };
         guard.cancel_one(p);
         guard.tokens.insert(p, token.clone());
-        state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+        (session_id, text, state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1)
     };
     let _ = app.emit(
         "provider-restarted",
