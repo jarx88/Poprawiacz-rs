@@ -96,8 +96,9 @@ export function CorrectionView() {
       setNotice({ text: "Brak tekstu do poprawy. Wpisz go lub skopiuj do schowka." });
       return;
     }
-    const id = await startCorrection(text, style);
-    startSession(id, text);
+    // the backend's "session-started" event resets the panels; doing it here as
+    // well could put a panel that already failed back to loading
+    await startCorrection(text, style);
   };
 
   // One paste at a time, for the button and the shortcut alike: a second call

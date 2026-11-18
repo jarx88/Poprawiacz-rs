@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent } from "react";
 
-/** Close a dialog or menu with Escape. */
+/** Close a menu with Escape (dialogs are native and close themselves). */
 export function useEscape(onEscape: () => void) {
   const handler = useEffectEvent(onEscape);
   useEffect(() => {

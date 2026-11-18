@@ -36,6 +36,12 @@ impl SessionCancels {
             t.cancel();
         }
     }
+    /// True when `token` was cancelled to make room for a newer attempt
+    /// (reprocess, new session): whatever its task still reports is stale.
+    /// A plain cancel leaves no live token behind, so it is not superseded.
+    pub fn superseded(&self, provider: Provider, token: &CancellationToken) -> bool {
+        token.is_cancelled() && self.tokens.get(&provider).is_some_and(|t| !t.is_cancelled())
+    }
 }
 
 /// Shared application state held by Tauri.
@@ -61,5 +67,29 @@ impl AppState {
             last_input: Mutex::new(None),
             last_activity_s: AtomicU64::new(0),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_replaced_attempt_is_superseded() {
+        let p = Provider::OpenAI;
+        let mut cancels = SessionCancels::default();
+        let first = CancellationToken::new();
+        cancels.tokens.insert(p, first.clone());
+        assert!(!cancels.superseded(p, &first)); // running
+
+        cancels.cancel_one(p);
+        assert!(!cancels.superseded(p, &first)); // cancelled by the user: must report
+
+        cancels.tokens.insert(p, CancellationToken::new()); // reprocess
+        assert!(cancels.superseded(p, &first));
+
+        let second = cancels.tokens[&p].clone();
+        cancels.cancel_all(); // "Anuluj wszystko", closing the window
+        assert!(!cancels.superseded(p, &second));
     }
 }

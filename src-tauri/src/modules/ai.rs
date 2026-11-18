@@ -67,9 +67,23 @@ fn spawn_provider(
             };
 
             let started = Instant::now();
+            // An attempt replaced by a newer one (reprocess) must stay silent: its
+            // late events carry the same session id and would land on the new attempt.
+            let superseded = {
+                let (app, token) = (app.clone(), token.clone());
+                move || {
+                    let state = app.state::<AppState>();
+                    let cancels = state.cancel.lock().expect("cancel mutex poisoned");
+                    cancels.superseded(provider, &token)
+                }
+            };
             let result = if stream {
                 let app_chunk = app.clone();
+                let superseded = superseded.clone();
                 ai::correct_stream(&http, &req, &token, move |delta| {
+                    if superseded() {
+                        return;
+                    }
                     let _ = app_chunk.emit(
                         "provider-chunk",
                         json!({ "session_id": session_id, "provider": provider, "delta": delta }),
@@ -81,6 +95,10 @@ fn spawn_provider(
             };
 
             let elapsed_ms = started.elapsed().as_millis() as u64;
+            if superseded() {
+                tracing::info!(provider = provider.key(), "task: superseded");
+                return;
+            }
             match result {
                 Ok(text) => {
                     tracing::info!(provider = provider.key(), elapsed_ms, len = text.len(), "task: result");

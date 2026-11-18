@@ -135,7 +135,11 @@ async function main() {
   if (state === "errors") click('[data-ux="like-openai"]');
   if (state === "menu")
     click(`[data-ux="menu-${variant === "low" ? "deepseek" : "anthropic"}"]`);
-  if (state === "original") click('[data-ux="original"]');
+  if (state === "original") {
+    // focused first, as a real click would: closing must hand the focus back
+    document.querySelector<HTMLElement>('[data-ux="original"]')!.focus();
+    click('[data-ux="original"]');
+  }
   if (state === "settings") await emit("open-settings");
   // The settings dialog is a lazy chunk that then loads its data: wait for it.
   const want = { settings: ".provider-card", original: ".original__text", menu: ".panel__menu" }[state];
@@ -177,6 +181,17 @@ async function main() {
     document.querySelector<HTMLElement>(".composer__input")!.focus();
     await sleep(50);
     if (document.querySelector(".panel__menu")) throw new Error("menu stayed open after blur");
+  }
+  if (variant === "focus") {
+    // a modal dialog: focus starts on its text, cannot leave it, returns to the opener
+    const active = () => document.activeElement;
+    if (!active()?.matches(".original__text")) throw new Error("the dialog did not focus its text");
+    document.querySelector<HTMLElement>(".composer__input")!.focus();
+    if (!active()?.closest("dialog")) throw new Error("the page behind the dialog is not inert");
+    click("dialog .primary");
+    await sleep(100);
+    if (document.querySelector("dialog")) throw new Error("the dialog did not close");
+    if (!active()?.matches('[data-ux="original"]')) throw new Error("focus did not return to the opener");
   }
   await document.fonts.ready;
 }
