@@ -1,0 +1,155 @@
+round	judge	app	category	score	note
+0	claude-sonnet	ours	Hierarchy	7.5
+0	claude-sonnet	ours	Typography	7.5
+0	claude-sonnet	ours	Spacing and alignment	7.0
+0	claude-sonnet	ours	Colour and contrast	7.0
+0	claude-sonnet	ours	Iconography	5.5	mixed emoji and glyphs
+0	claude-sonnet	ours	Consistency	7.0
+0	claude-sonnet	ours	State clarity	7.0
+0	claude-sonnet	old-python	Hierarchy	6.0
+0	claude-sonnet	old-python	Typography	6.5
+0	claude-sonnet	old-python	Spacing and alignment	6.5
+0	claude-sonnet	old-python	Colour and contrast	7.0
+0	claude-sonnet	old-python	Iconography	5.5
+0	claude-sonnet	old-python	Consistency	6.0
+0	claude-sonnet	old-python	State clarity	6.5
+1	claude-sonnet	ours	Hierarchy	8.0	
+1	claude-sonnet	ours	Typography	7.5	
+1	claude-sonnet	ours	Spacing and alignment	7.5	
+1	claude-sonnet	ours	Colour and contrast	7.0	ghost buttons read as disabled
+1	claude-sonnet	ours	Iconography	6.5	icons small and dim; toolbar has none
+1	claude-sonnet	ours	Consistency	7.5	
+1	claude-sonnet	ours	State clarity	7.5	disabled Uzyj pill; status read as truncated
+1	claude-sonnet	old-python	Hierarchy	6.0	
+1	claude-sonnet	old-python	Typography	6.5	
+1	claude-sonnet	old-python	Spacing and alignment	6.0	
+1	claude-sonnet	old-python	Colour and contrast	7.0	
+1	claude-sonnet	old-python	Iconography	4.5	
+1	claude-sonnet	old-python	Consistency	6.0	
+1	claude-sonnet	old-python	State clarity	6.0	
+2	claude-sonnet	ours	Hierarchy	8.0	
+2	claude-sonnet	ours	Typography	7.5	result text small
+2	claude-sonnet	ours	Spacing and alignment	7.5	
+2	claude-sonnet	ours	Colour and contrast	7.5	
+2	claude-sonnet	ours	Iconography	8.0	
+2	claude-sonnet	ours	Consistency	8.0	
+2	claude-sonnet	ours	State clarity	8.0	idle state weak
+2	claude-sonnet	old-python	Hierarchy	6.0	
+2	claude-sonnet	old-python	Typography	6.5	
+2	claude-sonnet	old-python	Spacing and alignment	6.0	
+2	claude-sonnet	old-python	Colour and contrast	6.5	
+2	claude-sonnet	old-python	Iconography	4.5	
+2	claude-sonnet	old-python	Consistency	5.5	
+2	claude-sonnet	old-python	State clarity	5.5	
+3	claude-sonnet	ours	Hierarchy	8.0	
+3	claude-sonnet	ours	Typography	7.5	
+3	claude-sonnet	ours	Spacing and alignment	7.3	idle card straddles panels
+3	claude-sonnet	ours	Colour and contrast	7.8	
+3	claude-sonnet	ours	Iconography	8.5	
+3	claude-sonnet	ours	Consistency	8.3	
+3	claude-sonnet	ours	State clarity	8.0	
+3	claude-sonnet	old-python	Hierarchy	6.5	
+3	claude-sonnet	old-python	Typography	6.5	
+3	claude-sonnet	old-python	Spacing and alignment	6.0	
+3	claude-sonnet	old-python	Colour and contrast	6.3	
+3	claude-sonnet	old-python	Iconography	4.5	
+3	claude-sonnet	old-python	Consistency	5.5	
+3	claude-sonnet	old-python	State clarity	6.0	
+4	claude-sonnet	ours	Hierarchy	8.3	
+4	claude-sonnet	ours	Typography	8.0	
+4	claude-sonnet	ours	Spacing and alignment	8.0	idle: dead space under header strips
+4	claude-sonnet	ours	Colour and contrast	8.4	
+4	claude-sonnet	ours	Iconography	8.5	
+4	claude-sonnet	ours	Consistency	8.3	
+4	claude-sonnet	ours	State clarity	8.6	
+4	claude-sonnet	old-python	Hierarchy	6.0	
+4	claude-sonnet	old-python	Typography	6.5	
+4	claude-sonnet	old-python	Spacing and alignment	6.0	
+4	claude-sonnet	old-python	Colour and contrast	6.8	
+4	claude-sonnet	old-python	Iconography	4.5	
+4	claude-sonnet	old-python	Consistency	5.5	
+4	claude-sonnet	old-python	State clarity	6.0	
+0	codex-gpt	ours	Hierarchy	8.0	
+0	codex-gpt	ours	Typography	7.5	
+0	codex-gpt	ours	Spacing and alignment	7.0	
+0	codex-gpt	ours	Colour and contrast	8.0	
+0	codex-gpt	ours	Iconography	6.5	
+0	codex-gpt	ours	Consistency	7.5	
+0	codex-gpt	ours	State clarity	7.0	
+0	codex-gpt	old-python	Hierarchy	7.0	
+0	codex-gpt	old-python	Typography	7.5	
+0	codex-gpt	old-python	Spacing and alignment	7.5	
+0	codex-gpt	old-python	Colour and contrast	7.0	
+0	codex-gpt	old-python	Iconography	7.0	
+0	codex-gpt	old-python	Consistency	7.0	
+0	codex-gpt	old-python	State clarity	8.0	
+4	codex-gpt	ours	Hierarchy	8.6	Popraw competes with Uzyj
+4	codex-gpt	ours	Typography	8.6	
+4	codex-gpt	ours	Spacing and alignment	8.8	
+4	codex-gpt	ours	Colour and contrast	8.7	
+4	codex-gpt	ours	Iconography	8.2	menu should stay at the right edge
+4	codex-gpt	ours	Consistency	8.5	
+4	codex-gpt	ours	State clarity	8.5	
+4	codex-gpt	old-python	Hierarchy	7.3	
+4	codex-gpt	old-python	Typography	7.8	
+4	codex-gpt	old-python	Spacing and alignment	7.5	
+4	codex-gpt	old-python	Colour and contrast	7.4	
+4	codex-gpt	old-python	Iconography	6.8	
+4	codex-gpt	old-python	Consistency	7.3	
+4	codex-gpt	old-python	State clarity	7.5	
+5	claude-sonnet	ours	Hierarchy	8.3	
+5	claude-sonnet	ours	Typography	8.0	
+5	claude-sonnet	ours	Spacing and alignment	8.0	
+5	claude-sonnet	ours	Colour and contrast	8.0	
+5	claude-sonnet	ours	Iconography	8.3	
+5	claude-sonnet	ours	Consistency	8.2	
+5	claude-sonnet	ours	State clarity	8.5	
+5	claude-sonnet	old-python	Hierarchy	5.5	
+5	claude-sonnet	old-python	Typography	6.0	
+5	claude-sonnet	old-python	Spacing and alignment	5.5	
+5	claude-sonnet	old-python	Colour and contrast	6.5	
+5	claude-sonnet	old-python	Iconography	4.5	
+5	claude-sonnet	old-python	Consistency	5.0	
+5	claude-sonnet	old-python	State clarity	5.0	
+5	codex-gpt	ours	Hierarchy	8.7	Popraw still white while a session runs
+5	codex-gpt	ours	Typography	8.5	
+5	codex-gpt	ours	Spacing and alignment	8.8	
+5	codex-gpt	ours	Colour and contrast	8.8	
+5	codex-gpt	ours	Iconography	8.4	menu button wants a resting background
+5	codex-gpt	ours	Consistency	8.7	
+5	codex-gpt	ours	State clarity	8.5	
+5	codex-gpt	old-python	Hierarchy	7.3	
+5	codex-gpt	old-python	Typography	7.7	
+5	codex-gpt	old-python	Spacing and alignment	7.1	
+5	codex-gpt	old-python	Colour and contrast	7.6	
+5	codex-gpt	old-python	Iconography	6.8	
+5	codex-gpt	old-python	Consistency	7.2	
+5	codex-gpt	old-python	State clarity	7.5	
+6	claude-sonnet	ours	Hierarchy	8.0	source text as strong as the results
+6	claude-sonnet	ours	Typography	7.8	
+6	claude-sonnet	ours	Spacing and alignment	8.3	
+6	claude-sonnet	ours	Colour and contrast	8.1	Uzyj fills differ in perceived lightness
+6	claude-sonnet	ours	Iconography	8.5	
+6	claude-sonnet	ours	Consistency	8.6	
+6	claude-sonnet	ours	State clarity	8.8	
+6	claude-sonnet	old-python	Hierarchy	6.0	
+6	claude-sonnet	old-python	Typography	6.2	
+6	claude-sonnet	old-python	Spacing and alignment	6.0	
+6	claude-sonnet	old-python	Colour and contrast	6.8	
+6	claude-sonnet	old-python	Iconography	4.0	
+6	claude-sonnet	old-python	Consistency	5.0	
+6	claude-sonnet	old-python	State clarity	5.5	
+6	codex-gpt	ours	Hierarchy	8.8	
+6	codex-gpt	ours	Typography	8.4	
+6	codex-gpt	ours	Spacing and alignment	8.6	
+6	codex-gpt	ours	Colour and contrast	8.8	
+6	codex-gpt	ours	Iconography	8.7	
+6	codex-gpt	ours	Consistency	8.8	
+6	codex-gpt	ours	State clarity	8.5	wants a thin scrollbar in scrolling results
+6	codex-gpt	old-python	Hierarchy	7.4	
+6	codex-gpt	old-python	Typography	7.7	
+6	codex-gpt	old-python	Spacing and alignment	7.2	
+6	codex-gpt	old-python	Colour and contrast	7.3	
+6	codex-gpt	old-python	Iconography	6.8	
+6	codex-gpt	old-python	Consistency	7.0	
+6	codex-gpt	old-python	State clarity	7.5	
