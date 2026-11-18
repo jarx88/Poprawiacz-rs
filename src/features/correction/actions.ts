@@ -11,7 +11,9 @@ export function keyAction(
   return i < 0 ? null : i;
 }
 
-/** Errors the user fixes in settings: no key saved, or the provider rejected it. */
-export function isKeyError(message: string | null): boolean {
-  return /Brak klucza|status Some\((401|403)\)/.test(message ?? "");
+/** Errors the user fixes in settings (missing or rejected key, unknown model).
+ *  The backend words those so that they say "w ustawieniach"
+ *  (`AiError::user_message` in the core crate). */
+export function fixableInSettings(message: string | null): boolean {
+  return (message ?? "").includes("w ustawieniach");
 }
