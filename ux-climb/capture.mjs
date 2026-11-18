@@ -36,6 +36,9 @@ const STATES = {
   // lower-row menu in a short window (opens upwards), notice chip in the narrow one
   "menu-low": [1100, 660],
   "errors-narrow": [720, 520],
+  // a failure notice stays until the next session; a menu closes when focus leaves it
+  "idle-notice": [1100, 760],
+  "menu-blur": [1100, 760],
 };
 
 mkdirSync(out, { recursive: true });
@@ -51,14 +54,11 @@ const kids = [
     { stdio: "ignore", env: { ...process.env, TZ: "Europe/Warsaw" } },
   ),
 ];
-let finished = false;
 // Vite exits at once when its port is taken; without this the script would
 // screenshot whatever else is listening there.
 kids[0].on("exit", () => {
-  if (!finished) {
-    console.error(`vite exited early (is port ${VITE} taken?)`);
-    process.exit(1);
-  }
+  console.error(`vite exited early (is port ${VITE} taken?)`);
+  process.exit(1);
 });
 const cleanup = () => {
   kids.forEach((k) => k.kill());
@@ -87,12 +87,18 @@ const ok = async (url) => {
 };
 
 await retry(() => ok(base));
-const cdpPort = await retry(() =>
-  readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n")[0],
-);
-const target = await retry(async () =>
-  (await (await ok(`http://localhost:${cdpPort}/json/list`)).json()).find((t) => t.type === "page"),
-);
+// Chrome may be caught mid-write or before its first page exists: retry both.
+const cdpPort = await retry(() => {
+  const port = readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n")[0];
+  if (!/^\d+$/.test(port)) throw new Error("DevToolsActivePort not written yet");
+  return port;
+});
+const target = await retry(async () => {
+  const pages = await (await ok(`http://localhost:${cdpPort}/json/list`)).json();
+  const page = pages.find((t) => t.type === "page");
+  if (!page) throw new Error("no page target yet");
+  return page;
+});
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((r, j) => ((ws.onopen = r), (ws.onerror = j)));
 let seq = 0;
@@ -116,6 +122,8 @@ const evaluate = async (expression) => {
 };
 
 const metrics = {};
+// a headless page has no focus, so focus and blur events would never fire
+await cdp("Emulation.setFocusEmulationEnabled", { enabled: true });
 for (const [state, [width, height]] of Object.entries(STATES)) {
   await cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
   await cdp("Page.navigate", { url: `${base}?state=${state}` });
@@ -134,5 +142,4 @@ for (const [state, [width, height]] of Object.entries(STATES)) {
 writeFileSync(join(out, "metrics.json"), JSON.stringify(metrics, null, 1) + "\n");
 ws.close();
 console.log(`captured: ${out}`);
-finished = true;
 process.exit(0);

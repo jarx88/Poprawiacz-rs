@@ -31,6 +31,7 @@ describe("keyAction", () => {
     expect(keyAction(key("1", { repeat: true }), false)).toBeNull();
     expect(keyAction(key("1", { isComposing: true }), false)).toBeNull();
     expect(keyAction(key("Enter", { ctrlKey: true, shiftKey: true }), false)).toBeNull();
+    expect(keyAction(key("1", { shiftKey: true }), false)).toBe(0); // AZERTY digit
   });
 });
 

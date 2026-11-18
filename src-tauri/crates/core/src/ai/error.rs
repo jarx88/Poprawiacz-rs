@@ -98,8 +98,9 @@ impl AiError {
 
 /// The provider's own explanation: `error.message` from a JSON error body (an
 /// array of such objects for Gemini streams), otherwise the body as it came,
-/// cut to a length that fits a panel.
-fn provider_detail(body: &str) -> String {
+/// cut to a length that fits a panel. Applied where the body is read, so the
+/// error (and the log) never carries a whole raw response.
+pub(crate) fn provider_detail(body: &str) -> String {
     let text = serde_json::from_str::<serde_json::Value>(body)
         .ok()
         .and_then(|v| {
