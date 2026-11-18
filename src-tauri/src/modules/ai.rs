@@ -205,32 +205,38 @@ pub fn start_correction(app: AppHandle, text: String, style: String) -> u64 {
     run_correction(&app, text, Style::from_key(&style))
 }
 
-/// Re-run a single provider in the current session with a (possibly different)
-/// style — the per-panel ⚙️ action menu (professional / EN / PL).
+/// Re-run a single provider in session `session_id` with a (possibly different)
+/// style — the per-panel ⚙️ action menu (professional / EN / PL). Refused when
+/// a newer session has replaced the one the panel was showing.
 #[tauri::command]
-pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Result<(), String> {
+pub fn reprocess_provider(
+    app: AppHandle,
+    session_id: u64,
+    provider: String,
+    style: String,
+) -> Result<(), String> {
     let Some(p) = Provider::ALL.into_iter().find(|p| p.key() == provider) else {
         return Err(format!("unknown provider: {provider}"));
     };
     let state = app.state::<AppState>();
-    state
-        .last_activity_s
-        .store(updater::now_s(), std::sync::atomic::Ordering::SeqCst);
     // Fresh token for this provider; cancel its previous in-flight task. The
     // session's input is read and the attempt number taken under the same lock
     // as the token swap: the token replaced always belongs to the session that
     // is reprocessed, and the newer token always has the higher number.
     let token = CancellationToken::new();
-    let (session_id, text, attempt) = {
+    let (text, attempt) = {
         let mut guard = state.cancel.lock().expect("cancel mutex poisoned");
-        let (session_id, text) = match state.last_input.lock().expect("last_input poisoned").as_ref() {
-            Some((sid, text, _)) => (*sid, text.clone()),
-            None => return Err("no active session".into()),
+        let text = match state.last_input.lock().expect("last_input poisoned").as_ref() {
+            Some((sid, text, _)) if *sid == session_id => text.clone(),
+            _ => return Err("no such session".into()),
         };
         guard.cancel_one(p);
         guard.tokens.insert(p, token.clone());
-        (session_id, text, state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1)
+        (text, state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1)
     };
+    state
+        .last_activity_s
+        .store(updater::now_s(), std::sync::atomic::Ordering::SeqCst);
     let _ = app.emit(
         "provider-restarted",
         json!({ "session_id": session_id, "attempt": attempt, "provider": p }),
