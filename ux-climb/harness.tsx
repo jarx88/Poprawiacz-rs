@@ -251,7 +251,13 @@ async function main() {
   }
   if (variant === "openrouter") {
     // one key for every panel: the cards drop their key fields and list
-    // OpenRouter's models; saving without the key is refused
+    // OpenRouter's models; only that key is checked and saved
+    const typeInto = (field: HTMLInputElement, text: string) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, text);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const keyFields = () => [...document.querySelectorAll<HTMLInputElement>('input[type="password"]')];
+    typeInto(keyFields()[0], "zly"); // a slip in OpenAI's field, hidden a moment later
     const route = document.querySelector<HTMLSelectElement>('[data-ux="route"]')!;
     route.value = "openrouter";
     route.dispatchEvent(new Event("change", { bubbles: true }));
@@ -266,6 +272,19 @@ async function main() {
     await sleep(50);
     if ("save_settings" in calls) throw new Error("saved OpenRouter mode without its key");
     if (!document.querySelector(".field__err")) throw new Error("no message about the missing key");
+    typeInto(keyFields()[0], "sk-or-v1-0123456789");
+    click("dialog .primary");
+    await sleep(50);
+    const saved = (calls.save_settings as { payload?: Record<string, unknown> } | undefined)?.payload;
+    if (!saved?.openrouter || JSON.stringify(saved.api_keys) !== '{"openrouter":"sk-or-v1-0123456789"}')
+      throw new Error(`OpenRouter mode not saved with its key alone: ${JSON.stringify(saved?.api_keys)}`);
+    // saved and closed; show the dialog in that mode again for the screenshot
+    await emit("open-settings");
+    for (let i = 0; !document.querySelector('[data-ux="route"]') && i < 100; i++) await sleep(50);
+    const again = document.querySelector<HTMLSelectElement>('[data-ux="route"]')!;
+    again.value = "openrouter";
+    again.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(150);
   }
   await document.fonts.ready;
 }

@@ -24,6 +24,8 @@ use super::AppState;
 #[allow(clippy::too_many_arguments)]
 fn spawn_provider(
     app: &AppHandle,
+    // read once per session, so its panels cannot end up on different routes
+    settings: config::AppSettings,
     session_id: u64,
     attempt: u64,
     provider: Provider,
@@ -31,7 +33,6 @@ fn spawn_provider(
     style: Style,
     token: CancellationToken,
 ) {
-    let settings = config::load_settings(app);
     // One OpenRouter key and its own model id per panel, or the provider's own.
     let openrouter = settings.openrouter;
     let (model, key) = if openrouter {
@@ -174,8 +175,9 @@ pub fn run_correction(app: &AppHandle, text: String, style: Style) -> u64 {
         json!({ "session_id": session_id, "text": text }),
     );
 
+    let settings = config::load_settings(app);
     for provider in Provider::ALL {
-        spawn_provider(app, session_id, 0, provider, text.clone(), style, tokens[&provider].clone());
+        spawn_provider(app, settings.clone(), session_id, 0, provider, text.clone(), style, tokens[&provider].clone());
     }
 
     session_id
@@ -234,7 +236,8 @@ pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Re
         "provider-restarted",
         json!({ "session_id": session_id, "attempt": attempt, "provider": p }),
     );
-    spawn_provider(&app, session_id, attempt, p, text, Style::from_key(&style), token);
+    let settings = config::load_settings(&app);
+    spawn_provider(&app, settings, session_id, attempt, p, text, Style::from_key(&style), token);
     Ok(())
 }
 

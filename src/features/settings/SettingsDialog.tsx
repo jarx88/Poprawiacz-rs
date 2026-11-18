@@ -140,14 +140,36 @@ export default function SettingsDialog({ onClose }: Props) {
       });
   };
 
-  /** OpenRouter's list is public and covers every panel in one request. */
-  const loadOrModels = () =>
+  /** OpenRouter's list is public and covers every panel in one request, so one
+   *  request at a time is enough (and none can overtake another). */
+  const orLoading = useRef(false);
+  const loadOrModels = () => {
+    if (orLoading.current) return;
+    orLoading.current = true;
+    const all = (value: string) => Object.fromEntries(PROVIDERS.map((p) => [p, value]));
     listOpenrouterModels()
-      .then((lists) => setOrLists(lists))
-      .catch((e) => setOrLists(Object.fromEntries(PROVIDERS.map((p) => [p, String(e)]))));
-  const switchRoute = (on: boolean) => {
+      .then((lists) =>
+        PROVIDERS.some((p) => lists[p]?.length)
+          ? lists
+          : all("OpenRouter nie zwrócił żadnego modelu."),
+      )
+      .catch((e) => all(String(e)))
+      .then((lists) => {
+        orLoading.current = false;
+        setOrLists(lists);
+      });
+  };
+  /** Lists are fetched for the route in use only: opening the dialog in
+   *  OpenRouter mode sends nothing to the providers. */
+  const switchRoute = (on: boolean, present = keysPresent) => {
     setOpenrouter(on);
-    if (on && !PROVIDERS.some((p) => Array.isArray(orLists[p]))) void loadOrModels();
+    setManual({}); // manual entry belongs to the route it was chosen on
+    if (on) {
+      if (!PROVIDERS.some((p) => Array.isArray(orLists[p]))) loadOrModels();
+    } else {
+      for (const p of PROVIDERS)
+        if (present[p] && modelLists[p] === undefined) void loadModels(p);
+    }
   };
 
   const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
@@ -157,7 +179,7 @@ export default function SettingsDialog({ onClose }: Props) {
     setSavedModels(names(s.models));
     setOrModels(names(s.openrouter_models));
     setSavedOrModels(names(s.openrouter_models));
-    switchRoute(s.openrouter);
+    switchRoute(s.openrouter, s.keys_present ?? {});
     setDefaultStyle(s.default_style || "normal");
     setHighlightDiffs(s.highlight_diffs);
     setAutostartup(s.autostartup);
@@ -165,7 +187,6 @@ export default function SettingsDialog({ onClose }: Props) {
     setAi({ ...s.ai_settings, system_prompt: s.ai_settings.system_prompt ?? "" });
     setDefaultPrompt(s.default_system_prompt);
     setKeysPresent(s.keys_present ?? {});
-    for (const p of PROVIDERS) if (s.keys_present?.[p]) void loadModels(p);
   };
 
   useEffect(() => {
@@ -175,10 +196,17 @@ export default function SettingsDialog({ onClose }: Props) {
   }, []);
 
   const save = async () => {
+    // Only the route in use is validated and saved: the other one's fields are
+    // hidden, so a slip typed there must neither block the save nor be stored.
+    // An emptied field means "leave the stored key"; sending "" would delete it.
+    const accounts: readonly KeyAccount[] = openrouter ? ["openrouter"] : PROVIDERS;
+    const keys = Object.fromEntries(
+      accounts.map((account) => [account, typedKey(account)]).filter(([, key]) => key),
+    );
     const result = validateSettings({
       models: openrouter ? orModels : models,
       defaultStyle,
-      apiKeys,
+      apiKeys: keys,
     });
     if (openrouter && !keysPresent.openrouter && !typedKey("openrouter"))
       result.errors["key.openrouter"] = "Połączenie przez OpenRouter wymaga jego klucza.";
@@ -194,13 +222,7 @@ export default function SettingsDialog({ onClose }: Props) {
         autostartup,
         ai_settings: ai,
         clipboard_delay_ms: clipboardDelayMs,
-        // an emptied field means "leave the stored key", as the dialog says;
-        // sending "" would delete it
-        api_keys: Object.fromEntries(
-          ([...PROVIDERS, "openrouter"] as const)
-            .map((account) => [account, typedKey(account)])
-            .filter(([, key]) => key),
-        ),
+        api_keys: keys,
       });
       close();
     } catch (e) {
