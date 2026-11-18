@@ -209,10 +209,19 @@ pub async fn correct_stream<F>(
 where
     F: FnMut(&str),
 {
-    match stream_attempts(client, req, cancel, &mut on_chunk).await {
+    // Text already shown must never be followed by a second answer.
+    let emitted = std::sync::atomic::AtomicBool::new(false);
+    let mut tracked = |delta: &str| {
+        emitted.store(true, std::sync::atomic::Ordering::Relaxed);
+        on_chunk(delta);
+    };
+    match stream_attempts(client, req, cancel, &mut tracked).await {
         // a refusal comes before any chunk, so repeating the request is safe
-        Err(e) if openrouter::learn_mandatory_reasoning(req, &e) => {
-            stream_attempts(client, req, cancel, &mut on_chunk).await
+        Err(e)
+            if !emitted.load(std::sync::atomic::Ordering::Relaxed)
+                && openrouter::learn_mandatory_reasoning(req, &e) =>
+        {
+            stream_attempts(client, req, cancel, &mut tracked).await
         }
         result => result,
     }

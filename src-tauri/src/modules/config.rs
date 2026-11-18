@@ -209,6 +209,15 @@ pub fn save_settings(app: AppHandle, payload: SaveSettingsPayload) -> Result<(),
 }
 
 fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result<(), String> {
+    // Keys first: a route is never switched on before its key is stored.
+    for account in Provider::ALL.map(Provider::key).into_iter().chain([OPENROUTER]) {
+        if let Some(k) = payload.api_keys.get(account) {
+            set_api_key(account, k)?;
+        }
+    }
+    if payload.openrouter && get_api_key(OPENROUTER).is_none() {
+        return Err("Połączenie przez OpenRouter wymaga jego klucza.".into());
+    }
     let correction_examples = load_settings(app).correction_examples;
     let settings = AppSettings {
         models: payload.models.clone(),
@@ -223,11 +232,6 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
     }
     .ensure_style();
     persist_settings(app, &settings)?;
-    for account in Provider::ALL.map(Provider::key).into_iter().chain([OPENROUTER]) {
-        if let Some(k) = payload.api_keys.get(account) {
-            set_api_key(account, k)?;
-        }
-    }
     // Reflect autostart preference into the OS (Windows registry).
     if let Err(e) = super::autostart::set_enabled(payload.autostartup) {
         tracing::warn!("autostart update failed: {e}");

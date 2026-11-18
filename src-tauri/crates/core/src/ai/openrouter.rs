@@ -60,21 +60,21 @@ fn reasoning_is_mandatory(model: &str) -> bool {
 }
 
 /// True when `err` is OpenRouter refusing to switch reasoning off for this
-/// model, seen for the first time: the model is remembered and the caller
-/// repeats the request once, which then asks for "minimal".
+/// model. The model is remembered, so the caller's one repeat of the request
+/// (and every later one) asks for "minimal". It answers by what this request
+/// was refused for, not by the memo: two panels may hit the refusal at once.
 pub fn learn_mandatory_reasoning(req: &CorrectionRequest, err: &AiError) -> bool {
     let refused = req.openrouter
         && req.reasoning_level == ReasoningLevel::Off
         && matches!(err, AiError::Response { status: Some(400), message, .. }
             if message.contains("Reasoning is mandatory"));
-    if !refused || reasoning_is_mandatory(&req.model) {
-        return false;
+    if refused {
+        let mut known = MANDATORY_REASONING.lock().expect("reasoning memo poisoned");
+        if !known.contains(&req.model) {
+            known.push(req.model.clone());
+        }
     }
-    MANDATORY_REASONING
-        .lock()
-        .expect("reasoning memo poisoned")
-        .push(req.model.clone());
-    true
+    refused
 }
 
 fn effort(req: &CorrectionRequest) -> &'static str {
@@ -105,7 +105,11 @@ fn embedded_error(body: &Value) -> Option<AiError> {
     let message = body.pointer("/error/message")?.as_str()?;
     Some(AiError::Response {
         provider: "openrouter".into(),
-        status: body.pointer("/error/code").and_then(Value::as_u64).map(|c| c as u16),
+        // the code is a number in live answers; a string is accepted too
+        status: body
+            .pointer("/error/code")
+            .and_then(|c| c.as_u64().or_else(|| c.as_str()?.parse().ok()))
+            .and_then(|c| u16::try_from(c).ok()),
         message: message.chars().take(200).collect(),
     })
 }
@@ -210,12 +214,13 @@ mod tests {
     }
 
     #[test]
-    fn a_model_that_needs_reasoning_is_learned_once_and_then_asked_for_minimal() {
+    fn a_model_that_needs_reasoning_is_learned_and_then_asked_for_minimal() {
         let off = req("anthropic/test-mandatory", ReasoningLevel::Off);
+        assert_eq!(build_body(&off)["reasoning"]["effort"], "none");
         assert!(learn_mandatory_reasoning(&off, &mandatory()));
-        // known now: no second retry, and the body asks for the least effort
-        assert!(!learn_mandatory_reasoning(&off, &mandatory()));
         assert_eq!(build_body(&off)["reasoning"]["effort"], "minimal");
+        // a second panel refused at the same moment repeats its request too
+        assert!(learn_mandatory_reasoning(&off, &mandatory()));
         // other levels, other errors and the direct route never trigger it
         assert!(!learn_mandatory_reasoning(&req("anthropic/test-low", ReasoningLevel::Low), &mandatory()));
         let timeout = AiError::Timeout { provider: "x".into(), seconds: 25 };
@@ -229,6 +234,8 @@ mod tests {
         let body = json!({ "error": { "message": "openai/x is not a valid model ID", "code": 400 } });
         let err = parse_response(&body).unwrap_err();
         assert!(matches!(err, AiError::Response { status: Some(400), .. }));
+        let funds = parse_response(&json!({ "error": { "message": "no credits", "code": "402" } }));
+        assert!(matches!(funds, Err(AiError::Response { status: Some(402), .. })));
         assert!(parse_sse_line(r#"data: {"error":{"message":"Provider returned error","code":502}}"#).is_err());
     }
 
