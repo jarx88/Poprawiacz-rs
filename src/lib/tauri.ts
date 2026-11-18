@@ -26,8 +26,15 @@ export interface AiSettings {
   system_prompt: string;
 }
 
+/** A keychain account: a provider's own key, or the one OpenRouter key. */
+export type KeyAccount = Provider | "openrouter";
+
 export interface SettingsView {
   models: Record<Provider, string | null>;
+  /** One OpenRouter key serves every panel instead of the providers' own keys. */
+  openrouter: boolean;
+  /** Each panel's OpenRouter model id (defaults filled in). */
+  openrouter_models: Record<Provider, string | null>;
   default_style: string;
   highlight_diffs: boolean;
   autostartup: boolean;
@@ -39,12 +46,14 @@ export interface SettingsView {
 
 export interface SaveSettingsPayload {
   models: Record<Provider, string | null>;
+  openrouter: boolean;
+  openrouter_models: Record<Provider, string | null>;
   default_style: string;
   highlight_diffs: boolean;
   autostartup: boolean;
   ai_settings: AiSettings;
   clipboard_delay_ms: number;
-  api_keys: Partial<Record<Provider, string>>;
+  api_keys: Partial<Record<KeyAccount, string>>;
 }
 
 // --- commands ---------------------------------------------------------------
@@ -102,6 +111,10 @@ export const migrateConfigIni = (path: string): Promise<number> =>
  *  but not saved yet; without it the backend uses the stored one. */
 export const listModels = (provider: Provider, apiKey?: string): Promise<string[]> =>
   invoke("list_models", { provider, apiKey });
+
+/** The text models OpenRouter offers for each panel (its list is public). */
+export const listOpenrouterModels = (): Promise<Record<Provider, string[]>> =>
+  invoke("list_openrouter_models");
 
 /** Open a web page in the system browser (the opener plugin's command). */
 export const openUrl = (url: string): Promise<void> =>

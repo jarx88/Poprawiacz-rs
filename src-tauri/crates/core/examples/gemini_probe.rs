@@ -64,6 +64,7 @@ async fn main() {
                     verbosity: "medium".into(),
                     custom_system_prompt: None,
                     correction_examples: Vec::new(),
+                    openrouter: false,
                 };
                 if std::env::var("E2E").is_ok() {
                     // The production path: retries, fallback model, dash stripping.

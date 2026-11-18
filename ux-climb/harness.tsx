@@ -45,7 +45,14 @@ const SETTINGS = {
     system_prompt: "",
   },
   clipboard_delay_ms: 400,
-  keys_present: { openai: true, anthropic: true, gemini: true, deepseek: false },
+  keys_present: { openai: true, anthropic: true, gemini: true, deepseek: false, openrouter: false },
+  openrouter: false,
+  openrouter_models: {
+    openai: "openai/gpt-5-mini",
+    anthropic: "anthropic/claude-haiku-4.5",
+    gemini: "google/gemini-3.6-flash",
+    deepseek: "deepseek/deepseek-v4-flash",
+  },
   default_system_prompt: "Jesteś redaktorem. Popraw tekst, zachowując styl autora.",
 };
 
@@ -124,6 +131,10 @@ async function main() {
           throw "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach. (HTTP 401)";
         return [SETTINGS.models[provider], `${provider}-nowszy-model`];
       }
+      if (cmd === "list_openrouter_models")
+        return Object.fromEntries(
+          Object.entries(SETTINGS.openrouter_models).map(([p, id]) => [p, [id, `${id}-pro`]]),
+        );
       if (cmd === "remember_correction") return 2;
       return undefined;
     },
@@ -237,6 +248,24 @@ async function main() {
     await sleep(50);
     if (deepseek.querySelector("select option[value='deepseek-nowszy-model']"))
       throw new Error("the list of a removed key is still shown");
+  }
+  if (variant === "openrouter") {
+    // one key for every panel: the cards drop their key fields and list
+    // OpenRouter's models; saving without the key is refused
+    const route = document.querySelector<HTMLSelectElement>('[data-ux="route"]')!;
+    route.value = "openrouter";
+    route.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(100);
+    const cards = [...document.querySelectorAll(".provider-card")];
+    if (cards.some((c) => c.querySelector('input[type="password"]')))
+      throw new Error("provider key fields are still shown in OpenRouter mode");
+    const ids = cards.map((c) => c.querySelector("select")?.value);
+    if (ids.join() !== Object.values(SETTINGS.openrouter_models).join())
+      throw new Error(`OpenRouter models not selected: ${ids}`);
+    click("dialog .primary");
+    await sleep(50);
+    if ("save_settings" in calls) throw new Error("saved OpenRouter mode without its key");
+    if (!document.querySelector(".field__err")) throw new Error("no message about the missing key");
   }
   await document.fonts.ready;
 }

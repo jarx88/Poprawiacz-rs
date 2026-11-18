@@ -175,6 +175,7 @@ mod tests {
             verbosity: "medium".into(),
             custom_system_prompt: None,
             correction_examples: Vec::new(),
+            openrouter: false,
         }
     }
 

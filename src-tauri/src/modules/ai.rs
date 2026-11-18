@@ -32,12 +32,20 @@ fn spawn_provider(
     token: CancellationToken,
 ) {
     let settings = config::load_settings(app);
-    let model = settings.models.resolved(provider);
+    // One OpenRouter key and its own model id per panel, or the provider's own.
+    let openrouter = settings.openrouter;
+    let (model, key) = if openrouter {
+        (
+            ai::openrouter::resolved_model(&settings.openrouter_models, provider),
+            config::get_api_key(config::OPENROUTER),
+        )
+    } else {
+        (settings.models.resolved(provider), config::get_api_key(provider.key()))
+    };
     let reasoning_level = settings.ai_settings.reasoning_levels.for_provider(provider);
     let verbosity = settings.ai_settings.verbosity.clone();
     let custom_system_prompt = Some(settings.ai_settings.system_prompt.clone());
     let correction_examples = settings.correction_examples;
-    let key = config::get_api_key(provider);
     let http = app.state::<AppState>().http.clone();
     let app = app.clone();
 
@@ -67,6 +75,7 @@ fn spawn_provider(
                 verbosity,
                 custom_system_prompt,
                 correction_examples,
+                openrouter,
             };
 
             let started = Instant::now();
@@ -239,7 +248,7 @@ pub async fn list_models(
 ) -> Result<Vec<String>, String> {
     let key = api_key
         .filter(|k| !k.trim().is_empty())
-        .or_else(|| config::get_api_key(provider))
+        .or_else(|| config::get_api_key(provider.key()))
         .ok_or("Brak klucza API.")?;
     let http = app.state::<AppState>().http.clone();
     ai::models::list_models(&http, provider, key.trim())
@@ -248,6 +257,19 @@ pub async fn list_models(
             tracing::warn!(provider = provider.key(), "list models: {e}");
             e.user_message()
         })
+}
+
+/// The text models OpenRouter offers for each panel. Its list is public, so no
+/// key is involved.
+#[tauri::command]
+pub async fn list_openrouter_models(
+    app: AppHandle,
+) -> Result<std::collections::HashMap<Provider, Vec<String>>, String> {
+    let http = app.state::<AppState>().http.clone();
+    ai::openrouter::list_models(&http).await.map_err(|e| {
+        tracing::warn!("list openrouter models: {e}");
+        e.user_message()
+    })
 }
 
 /// Cancel all in-flight providers (the "Anuluj wszystko" button).

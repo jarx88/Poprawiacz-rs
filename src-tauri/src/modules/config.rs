@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use poprawiacz_core::ai::Provider;
+use poprawiacz_core::ai::{openrouter, Provider};
 use poprawiacz_core::config::{parse_ini, AiSettings, ProviderModels};
 use poprawiacz_core::prompts::{
     remember_example, CorrectionExample, Style, MAX_CORRECTION_EXAMPLES,
@@ -24,6 +24,13 @@ fn default_clipboard_delay_ms() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub models: ProviderModels,
+    /// One OpenRouter key serves every panel instead of the providers' own keys.
+    #[serde(default)]
+    pub openrouter: bool,
+    /// Each panel's OpenRouter model id; kept apart from `models`, because the
+    /// two routes name the same model differently.
+    #[serde(default)]
+    pub openrouter_models: ProviderModels,
     pub default_style: String,
     #[serde(default)]
     pub highlight_diffs: bool,
@@ -41,6 +48,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             models: ProviderModels::default(),
+            openrouter: false,
+            openrouter_models: ProviderModels::default(),
             default_style: String::new(),
             highlight_diffs: false,
             autostartup: false,
@@ -94,20 +103,23 @@ pub fn persist_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), S
 
 // --- Keychain (secrets) -----------------------------------------------------
 
-fn entry(provider: Provider) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, provider.key()).map_err(|e| e.to_string())
+/// Keychain account of the OpenRouter key; the providers use `Provider::key()`.
+pub const OPENROUTER: &str = "openrouter";
+
+fn entry(account: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, account).map_err(|e| e.to_string())
 }
 
-pub fn get_api_key(provider: Provider) -> Option<String> {
-    entry(provider)
+pub fn get_api_key(account: &str) -> Option<String> {
+    entry(account)
         .ok()?
         .get_password()
         .ok()
         .filter(|s| !s.trim().is_empty())
 }
 
-pub fn set_api_key(provider: Provider, key: &str) -> Result<(), String> {
-    let e = entry(provider)?;
+pub fn set_api_key(account: &str, key: &str) -> Result<(), String> {
+    let e = entry(account)?;
     if key.trim().is_empty() {
         // empty => clear
         let _ = e.delete_credential();
@@ -117,10 +129,6 @@ pub fn set_api_key(provider: Provider, key: &str) -> Result<(), String> {
     }
 }
 
-fn has_api_key(provider: Provider) -> bool {
-    get_api_key(provider).is_some()
-}
-
 // --- Tauri commands ---------------------------------------------------------
 
 /// Snapshot returned to the frontend. Never includes raw key material — only
@@ -128,12 +136,14 @@ fn has_api_key(provider: Provider) -> bool {
 #[derive(Debug, Serialize)]
 pub struct SettingsView {
     pub models: ProviderModels,
+    pub openrouter: bool,
+    pub openrouter_models: ProviderModels,
     pub default_style: String,
     pub highlight_diffs: bool,
     pub autostartup: bool,
     pub ai_settings: AiSettings,
     pub clipboard_delay_ms: u64,
-    /// provider key -> whether a key is stored
+    /// keychain account (a provider key or "openrouter") -> whether a key is stored
     pub keys_present: std::collections::HashMap<String, bool>,
     /// Built-in default system prompt, so the UI can offer "restore default".
     pub default_system_prompt: &'static str,
@@ -142,12 +152,24 @@ pub struct SettingsView {
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> SettingsView {
     let s = load_settings(&app);
-    let mut keys_present = std::collections::HashMap::new();
-    for p in Provider::ALL {
-        keys_present.insert(p.key().to_string(), has_api_key(p));
-    }
+    let keys_present = Provider::ALL
+        .map(Provider::key)
+        .into_iter()
+        .chain([OPENROUTER])
+        .map(|account| (account.to_string(), get_api_key(account).is_some()))
+        .collect();
+    // defaults filled in, so switching to OpenRouter starts from working models
+    let or_model = |p| Some(openrouter::resolved_model(&s.openrouter_models, p));
+    let openrouter_models = ProviderModels {
+        openai: or_model(Provider::OpenAI),
+        anthropic: or_model(Provider::Anthropic),
+        gemini: or_model(Provider::Gemini),
+        deepseek: or_model(Provider::DeepSeek),
+    };
     SettingsView {
         models: s.models,
+        openrouter: s.openrouter,
+        openrouter_models,
         default_style: s.default_style,
         highlight_diffs: s.highlight_diffs,
         autostartup: s.autostartup || super::autostart::is_enabled(),
@@ -164,6 +186,10 @@ pub fn get_settings(app: AppHandle) -> SettingsView {
 #[derive(Debug, Deserialize)]
 pub struct SaveSettingsPayload {
     pub models: ProviderModels,
+    #[serde(default)]
+    pub openrouter: bool,
+    #[serde(default)]
+    pub openrouter_models: ProviderModels,
     pub default_style: String,
     #[serde(default)]
     pub highlight_diffs: bool,
@@ -186,6 +212,8 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
     let correction_examples = load_settings(app).correction_examples;
     let settings = AppSettings {
         models: payload.models.clone(),
+        openrouter: payload.openrouter,
+        openrouter_models: payload.openrouter_models.clone(),
         default_style: payload.default_style.clone(),
         highlight_diffs: payload.highlight_diffs,
         autostartup: payload.autostartup,
@@ -195,9 +223,9 @@ fn save_settings_inner(app: &AppHandle, payload: &SaveSettingsPayload) -> Result
     }
     .ensure_style();
     persist_settings(app, &settings)?;
-    for p in Provider::ALL {
-        if let Some(k) = payload.api_keys.get(p.key()) {
-            set_api_key(p, k)?;
+    for account in Provider::ALL.map(Provider::key).into_iter().chain([OPENROUTER]) {
+        if let Some(k) = payload.api_keys.get(account) {
+            set_api_key(account, k)?;
         }
     }
     // Reflect autostart preference into the OS (Windows registry).
@@ -239,15 +267,18 @@ pub fn migrate_config_ini(app: AppHandle, path: String) -> Result<u32, String> {
     let content = std::fs::read_to_string(&path).map_err(|e| format!("read {path}: {e}"))?;
     let legacy = parse_ini(&content)?;
 
-    let correction_examples = load_settings(&app).correction_examples;
+    // the legacy file knows nothing of OpenRouter or the examples: keep both
+    let current = load_settings(&app);
     let settings = AppSettings {
         models: legacy.models.clone(),
+        openrouter: current.openrouter,
+        openrouter_models: current.openrouter_models,
         default_style: legacy.settings.default_style.clone(),
         highlight_diffs: legacy.settings.highlight_diffs,
         autostartup: legacy.settings.autostartup,
         ai_settings: legacy.ai_settings.clone(),
         clipboard_delay_ms: legacy.settings.clipboard_delay_ms,
-        correction_examples,
+        correction_examples: current.correction_examples,
     }
     .ensure_style();
     persist_settings(&app, &settings)?;
@@ -255,7 +286,7 @@ pub fn migrate_config_ini(app: AppHandle, path: String) -> Result<u32, String> {
     let mut migrated = 0u32;
     for p in Provider::ALL {
         if let Some(k) = legacy.api_key(p) {
-            set_api_key(p, k)?;
+            set_api_key(p.key(), k)?;
             migrated += 1;
         }
     }

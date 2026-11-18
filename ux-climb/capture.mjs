@@ -45,6 +45,8 @@ const STATES = {
   "settings-esc": [1100, 760],
   // the model name is chosen from the provider's fetched list
   "settings-models": [1100, 760],
+  // one OpenRouter key instead of the providers' own
+  "settings-openrouter": [1100, 760],
 };
 
 mkdirSync(out, { recursive: true });

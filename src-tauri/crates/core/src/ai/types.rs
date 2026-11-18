@@ -134,6 +134,9 @@ pub struct CorrectionRequest {
     pub custom_system_prompt: Option<String>,
     /// Recent corrections approved by the user, used as style examples.
     pub correction_examples: Vec<CorrectionExample>,
+    /// Send through OpenRouter (`model` is then its id, `api_key` its key)
+    /// instead of the provider's own API.
+    pub openrouter: bool,
 }
 
 impl CorrectionRequest {
@@ -199,6 +202,7 @@ mod tests {
             verbosity: "medium".into(),
             custom_system_prompt: Some("Custom prompt".into()),
             correction_examples: Vec::new(),
+            openrouter: false,
         };
         assert_eq!(req.system_prompt(), "Custom prompt");
         // Whitespace-only custom prompt falls back to the built-in default.

@@ -3,7 +3,9 @@ import { Icon } from "../../Icon";
 import {
   AiSettings,
   getSettings,
+  type KeyAccount,
   listModels,
+  listOpenrouterModels,
   migrateConfigIni,
   openUrl,
   saveSettings,
@@ -47,6 +49,9 @@ const LEVEL_LABELS: Record<string, string> = {
   max: "Max",
 };
 const VERBOSITIES = ["low", "medium", "high"];
+
+/** Per panel: the fetched model names, or why they could not be fetched. */
+type ModelLists = Partial<Record<Provider, string[] | string>>;
 
 /** The model name: a choice from the provider's list once it is fetched, a text
  *  field until then, without a key, or in manual mode. */
@@ -99,19 +104,25 @@ export default function SettingsDialog({ onClose }: Props) {
   });
   const [defaultPrompt, setDefaultPrompt] = useState("");
   const [keysPresent, setKeysPresent] = useState<Record<string, boolean>>({});
-  const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
+  const [apiKeys, setApiKeys] = useState<Partial<Record<KeyAccount, string>>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [status, setStatus] = useState<string>("");
   // per provider: the fetched model names, or why they could not be fetched
-  const [modelLists, setModelLists] = useState<Partial<Record<Provider, string[] | string>>>({});
+  const [modelLists, setModelLists] = useState<ModelLists>({});
   const [manual, setManual] = useState<Partial<Record<Provider, boolean>>>({});
   const [savedModels, setSavedModels] = useState<Record<Provider, string>>(emptyModels());
+  // The OpenRouter route: one key for every panel and its own model ids, kept
+  // apart from the direct ones because the two routes name a model differently.
+  const [openrouter, setOpenrouter] = useState(false);
+  const [orModels, setOrModels] = useState<Record<Provider, string>>(emptyModels());
+  const [savedOrModels, setSavedOrModels] = useState<Record<Provider, string>>(emptyModels());
+  const [orLists, setOrLists] = useState<ModelLists>({});
   const { ref, close } = useModal();
 
   // Only the newest request of a provider may set its list: an older one
   // (stored key) can come back after a newer one (key just typed).
   const requests = useRef<Partial<Record<Provider, number>>>({});
-  const typedKey = (p: Provider) => (apiKeys[p] ?? "").trim();
+  const typedKey = (account: KeyAccount) => (apiKeys[account] ?? "").trim();
   /** The typed key was removed again: its list goes at once, then comes what
    *  the stored key lists. */
   const restoreModels = (p: Provider) => {
@@ -129,15 +140,24 @@ export default function SettingsDialog({ onClose }: Props) {
       });
   };
 
+  /** OpenRouter's list is public and covers every panel in one request. */
+  const loadOrModels = () =>
+    listOpenrouterModels()
+      .then((lists) => setOrLists(lists))
+      .catch((e) => setOrLists(Object.fromEntries(PROVIDERS.map((p) => [p, String(e)]))));
+  const switchRoute = (on: boolean) => {
+    setOpenrouter(on);
+    if (on && !PROVIDERS.some((p) => Array.isArray(orLists[p]))) void loadOrModels();
+  };
+
   const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
-    const loaded = {
-      openai: s.models.openai ?? "",
-      anthropic: s.models.anthropic ?? "",
-      gemini: s.models.gemini ?? "",
-      deepseek: s.models.deepseek ?? "",
-    };
-    setModels(loaded);
-    setSavedModels(loaded);
+    const names = (from: Record<Provider, string | null>) =>
+      Object.fromEntries(PROVIDERS.map((p) => [p, from[p] ?? ""])) as Record<Provider, string>;
+    setModels(names(s.models));
+    setSavedModels(names(s.models));
+    setOrModels(names(s.openrouter_models));
+    setSavedOrModels(names(s.openrouter_models));
+    switchRoute(s.openrouter);
     setDefaultStyle(s.default_style || "normal");
     setHighlightDiffs(s.highlight_diffs);
     setAutostartup(s.autostartup);
@@ -155,12 +175,20 @@ export default function SettingsDialog({ onClose }: Props) {
   }, []);
 
   const save = async () => {
-    const result = validateSettings({ models, defaultStyle, apiKeys });
+    const result = validateSettings({
+      models: openrouter ? orModels : models,
+      defaultStyle,
+      apiKeys,
+    });
+    if (openrouter && !keysPresent.openrouter && !typedKey("openrouter"))
+      result.errors["key.openrouter"] = "Połączenie przez OpenRouter wymaga jego klucza.";
     setErrors(result.errors);
-    if (!result.ok) return;
+    if (Object.keys(result.errors).length) return;
     try {
       await saveSettings({
         models,
+        openrouter,
+        openrouter_models: orModels,
         default_style: defaultStyle,
         highlight_diffs: highlightDiffs,
         autostartup,
@@ -169,7 +197,9 @@ export default function SettingsDialog({ onClose }: Props) {
         // an emptied field means "leave the stored key", as the dialog says;
         // sending "" would delete it
         api_keys: Object.fromEntries(
-          PROVIDERS.map((p) => [p, typedKey(p)]).filter(([, key]) => key),
+          ([...PROVIDERS, "openrouter"] as const)
+            .map((account) => [account, typedKey(account)])
+            .filter(([, key]) => key),
         ),
       });
       close();
@@ -278,7 +308,40 @@ export default function SettingsDialog({ onClose }: Props) {
               klucza zostawia zapisany klucz bez zmian.
             </p>
             <div className="group__grid">
-              {PROVIDERS.map((p) => (
+              <label className="field">
+                Połączenie
+                <select
+                  data-ux="route"
+                  value={openrouter ? "openrouter" : "direct"}
+                  onChange={(e) => switchRoute(e.target.value === "openrouter")}
+                >
+                  <option value="direct">Własne klucze dostawców</option>
+                  <option value="openrouter">OpenRouter (jeden klucz dla wszystkich)</option>
+                </select>
+              </label>
+              {openrouter && (
+                <label className="field">
+                  Klucz OpenRouter
+                  <input
+                    type="password"
+                    placeholder={keysPresent.openrouter ? "•••••••• bez zmian" : "wklej klucz"}
+                    value={apiKeys.openrouter ?? ""}
+                    onChange={(e) => setApiKeys((k) => ({ ...k, openrouter: e.target.value }))}
+                  />
+                  <span className="field__hint">Skąd wziąć: openrouter.ai/keys</span>
+                  {errors["key.openrouter"] && (
+                    <span className="field__err">{errors["key.openrouter"]}</span>
+                  )}
+                </label>
+              )}
+            </div>
+            <div className="group__grid">
+              {PROVIDERS.map((p) => {
+                // the route in use decides which key, model and list a card shows
+                const hasKey = keysPresent[openrouter ? "openrouter" : p];
+                const list = openrouter ? orLists[p] : modelLists[p];
+                const setModel = openrouter ? setOrModels : setModels;
+                return (
                 <div
                   key={p}
                   className="provider-card"
@@ -291,37 +354,41 @@ export default function SettingsDialog({ onClose }: Props) {
                       <span className="panel__dot" />
                       {PROVIDER_META[p].label}
                     </span>
-                    <span className={`chip chip--${keysPresent[p] ? "ok" : "warn"}`}>
-                      {keysPresent[p] ? "klucz zapisany" : "brak klucza"}
+                    <span className={`chip chip--${hasKey ? "ok" : "warn"}`}>
+                      {hasKey ? "klucz zapisany" : "brak klucza"}
                     </span>
                   </div>
                   <label className="field">
                     Model
                     <ModelField
-                      value={models[p]}
-                      saved={savedModels[p]}
-                      list={modelLists[p]}
+                      // a fresh field per route: nothing typed carries over
+                      key={openrouter ? "openrouter" : "direct"}
+                      value={(openrouter ? orModels : models)[p]}
+                      saved={(openrouter ? savedOrModels : savedModels)[p]}
+                      list={list}
                       manual={manual[p] ?? false}
-                      onChange={(model) => setModels((m) => ({ ...m, [p]: model }))}
+                      onChange={(model) => setModel((m) => ({ ...m, [p]: model }))}
                     />
                     {errors[`model.${p}`] && (
                       <span className="field__err">{errors[`model.${p}`]}</span>
                     )}
                     <span className="field__hint">
-                      {typeof modelLists[p] === "string" && (
-                        <>Lista modeli niedostępna: {modelLists[p]} </>
-                      )}
-                      {!keysPresent[p] && modelLists[p] === undefined && (
+                      {typeof list === "string" && <>Lista modeli niedostępna: {list} </>}
+                      {!openrouter && !hasKey && list === undefined && (
                         <>Lista modeli wymaga klucza API. </>
                       )}
                       <button
                         className="link"
-                        onClick={() => openUrl(MODEL_DOCS[p]).catch((e) => setStatus(String(e)))}
+                        onClick={() =>
+                          openUrl(openrouter ? "https://openrouter.ai/models" : MODEL_DOCS[p]).catch(
+                            (e) => setStatus(String(e)),
+                          )
+                        }
                       >
-                        Nazwy modeli u dostawcy
+                        {openrouter ? "Modele w OpenRouter" : "Nazwy modeli u dostawcy"}
                       </button>
                       {/* one toggle that stays in place, so it keeps the keyboard focus */}
-                      {Array.isArray(modelLists[p]) && (
+                      {Array.isArray(list) && (
                         <>
                           {" · "}
                           <button
@@ -333,11 +400,20 @@ export default function SettingsDialog({ onClose }: Props) {
                           </button>
                         </>
                       )}
+                      {openrouter && typeof list === "string" && (
+                        <>
+                          {" · "}
+                          <button className="link" onClick={loadOrModels}>
+                            Spróbuj ponownie
+                          </button>
+                        </>
+                      )}
                       {/* A typed key is sent to the provider only on this click, never
                           on its own; with the stored key it is a retry after a failure. */}
-                      {(typedKey(p)
-                        ? !validateApiKey(p, typedKey(p))
-                        : keysPresent[p] && typeof modelLists[p] === "string") && (
+                      {!openrouter &&
+                        (typedKey(p)
+                          ? !validateApiKey(p, typedKey(p))
+                          : hasKey && typeof list === "string") && (
                         <>
                           {" · "}
                           <button
@@ -351,6 +427,7 @@ export default function SettingsDialog({ onClose }: Props) {
                       )}
                     </span>
                   </label>
+                  {!openrouter && (
                   <label className="field">
                     Klucz API
                     <input
@@ -367,6 +444,7 @@ export default function SettingsDialog({ onClose }: Props) {
                       <span className="field__err">{errors[`key.${p}`]}</span>
                     )}
                   </label>
+                  )}
                   <label className="field">
                     Moc rozumowania
                     <select
@@ -385,7 +463,8 @@ export default function SettingsDialog({ onClose }: Props) {
                       ))}
                     </select>
                   </label>
-                  {p === "openai" && (
+                  {/* verbosity belongs to OpenAI's own Responses API */}
+                  {p === "openai" && !openrouter && (
                     <label className="field">
                       Długość odpowiedzi (verbosity)
                       <select
@@ -401,7 +480,8 @@ export default function SettingsDialog({ onClose }: Props) {
                     </label>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         </div>
