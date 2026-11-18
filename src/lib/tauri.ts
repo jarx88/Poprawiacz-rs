@@ -81,9 +81,10 @@ export const cancelProvider = (provider: Provider): Promise<void> =>
   invoke("cancel_provider", { provider });
 
 export const reprocessProvider = (
+  sessionId: number,
   provider: Provider,
   style: string,
-): Promise<void> => invoke("reprocess_provider", { provider, style });
+): Promise<void> => invoke("reprocess_provider", { sessionId, provider, style });
 
 export const rememberCorrection = (
   original: string,

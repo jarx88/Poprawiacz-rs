@@ -175,7 +175,8 @@ export function CorrectionView() {
 
   const reprocess = (prov: Provider, st: string) => {
     setNotice(null);
-    reprocessProvider(prov, st);
+    // refused only when a newer session has replaced the one shown here
+    reprocessProvider(sessionId, prov, st).catch(() => {});
   };
 
   const anyBusy = PROVIDERS.some((p) =>

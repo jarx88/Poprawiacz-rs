@@ -34,6 +34,7 @@ const KEY_HINTS: Record<Provider, string> = {
 
 /** Where each provider publishes its model names. The app may open only the
  *  links listed in src-tauri/capabilities/default.json: change both together. */
+const OPENROUTER_MODELS = "https://openrouter.ai/models";
 const MODEL_DOCS: Record<Provider, string> = {
   openai: "https://platform.openai.com/docs/models",
   anthropic: "https://docs.anthropic.com/en/docs/about-claude/models",
@@ -405,7 +406,7 @@ export default function SettingsDialog({ onClose }: Props) {
                       <button
                         className="link"
                         onClick={() =>
-                          openUrl(openrouter ? "https://openrouter.ai/models" : MODEL_DOCS[p]).catch(
+                          openUrl(openrouter ? OPENROUTER_MODELS : MODEL_DOCS[p]).catch(
                             (e) => setStatus(String(e)),
                           )
                         }
