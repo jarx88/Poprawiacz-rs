@@ -21,9 +21,9 @@ function statusLabel(state: PanelState): string {
     case "idle":
       return "";
     case "loading":
-      return "czeka…";
+      return "przetwarzanie";
     case "streaming":
-      return "pisze…";
+      return "pisze";
     case "done":
       return state.elapsedMs != null
         ? `${(state.elapsedMs / 1000).toFixed(1)} s`
@@ -74,7 +74,13 @@ export function ProviderPanel({
       return <p className="panel__note">Anulowano. Możesz ponowić tylko ten panel.</p>;
     }
     if (busy && state.text === "") {
-      return <div className="panel__spinner" aria-label="Ładowanie" />;
+      return (
+        <div className="panel__skeleton" role="status" aria-label="Ładowanie">
+          <span />
+          <span />
+          <span />
+        </div>
+      );
     }
     if (highlightDiffs && state.status === "done" && originalText) {
       return (
@@ -99,26 +105,28 @@ export function ProviderPanel({
       className={`panel panel--${state.status}`}
       style={{ "--pc": meta.color } as React.CSSProperties}
     >
-      {busy && (
-        <div
-          className="panel__progress"
-          role="progressbar"
-          aria-label="Trwa przetwarzanie"
-        >
-          <div className="panel__progress-bar" />
-        </div>
-      )}
-
       <header className="panel__head">
+        {busy && (
+          <div
+            className="panel__progress"
+            role="progressbar"
+            aria-label="Trwa przetwarzanie"
+          >
+            <div className="panel__progress-bar" />
+          </div>
+        )}
         <span className="panel__title">
           <span className="panel__dot" />
           {meta.label}
         </span>
         <span className="panel__head-right">
-          <span className={`panel__status panel__status--${state.status}`}>
-            {state.status === "error" && <Icon name="alert" size={14} />}
-            {statusLabel(state)}
-          </span>
+          {state.status !== "idle" && (
+            <span className={`panel__status panel__status--${state.status}`}>
+              {state.status === "error" && <Icon name="alert" size={13} />}
+              {state.status === "done" && <Icon name="check" size={13} />}
+              {statusLabel(state)}
+            </span>
+          )}
           {state.status === "done" && (
             <button
               data-ux={`like-${provider}`}
@@ -185,11 +193,14 @@ export function ProviderPanel({
 
       <div className="panel__body">{body()}</div>
 
-      {failed ? (
+      {/* No result yet: no button. It appears, always at the panel's bottom edge,
+          once there is something to use or retry. */}
+      {failed && (
         <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
           <Icon name="retry" /> Ponów {meta.label}
         </button>
-      ) : (
+      )}
+      {state.status === "done" && (
         <button
           className="panel__use"
           disabled={!canUse}

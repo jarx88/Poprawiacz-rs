@@ -163,6 +163,7 @@ export function CorrectionView() {
             onClick={() => setShowOriginal(true)}
             disabled={!originalText}
           >
+            <Icon name="file" />
             Oryginał
           </button>
           <button
@@ -170,6 +171,7 @@ export function CorrectionView() {
             title="Ukryj okno do zasobnika"
             onClick={() => getCurrentWindow().hide()}
           >
+            <Icon name="tray" />
             Minimalizuj
           </button>
           <span
@@ -186,6 +188,7 @@ export function CorrectionView() {
             onClick={cancelAll}
             disabled={!anyBusy}
           >
+            <Icon name="stop" />
             Anuluj wszystko
           </button>
           <button className="cta" onClick={runManual}>
