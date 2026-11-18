@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { Icon } from "../../Icon";
 import {
   AiSettings,
   getSettings,
   migrateConfigIni,
   saveSettings,
 } from "../../lib/tauri";
+import { useEscape } from "../../lib/useEscape";
 import { PROVIDERS, PROVIDER_META, Provider, STYLES, STYLE_LABELS } from "../correction/types";
 import { validateSettings } from "./validation";
 
@@ -52,6 +54,7 @@ export default function SettingsDialog({ onClose }: Props) {
   const [apiKeys, setApiKeys] = useState<Partial<Record<Provider, string>>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [status, setStatus] = useState<string>("");
+  useEscape(onClose);
 
   const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
     setModels({
@@ -108,143 +111,180 @@ export default function SettingsDialog({ onClose }: Props) {
   };
 
   return (
-    <div className="modal" role="dialog" aria-label="Ustawienia">
-      <div className="modal__card">
-        <h2>⚙️ Ustawienia</h2>
+    <div className="modal" role="dialog" aria-modal="true" aria-label="Ustawienia">
+      <div className="modal__card modal__card--wide">
+        <header className="modal__head">
+          <h2>Ustawienia</h2>
+          <button
+            className="icon-btn"
+            title="Zamknij bez zapisywania"
+            aria-label="Zamknij bez zapisywania"
+            onClick={onClose}
+          >
+            <Icon name="close" />
+          </button>
+        </header>
 
-        <label className="field">
-          Domyślny styl
-          <select value={defaultStyle} onChange={(e) => setDefaultStyle(e.target.value)}>
-            {STYLES.map((s) => (
-              <option key={s} value={s}>
-                {STYLE_LABELS[s]}
-              </option>
-            ))}
-          </select>
-          {errors.defaultStyle && <span className="field__err">{errors.defaultStyle}</span>}
-        </label>
+        <div className="modal__body">
+          <section className="group">
+            <h3>Ogólne</h3>
+            <div className="group__grid">
+              <label className="field">
+                Domyślny styl
+                <select value={defaultStyle} onChange={(e) => setDefaultStyle(e.target.value)}>
+                  {STYLES.map((s) => (
+                    <option key={s} value={s}>
+                      {STYLE_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+                {errors.defaultStyle && (
+                  <span className="field__err">{errors.defaultStyle}</span>
+                )}
+              </label>
+              <label className="field">
+                Opóźnienie schowka (ms)
+                <input
+                  type="number"
+                  min={0}
+                  value={clipboardDelayMs}
+                  onChange={(e) => setClipboardDelayMs(Number(e.target.value))}
+                />
+              </label>
+            </div>
+            <label className="field field--row">
+              <input
+                type="checkbox"
+                checked={highlightDiffs}
+                onChange={(e) => setHighlightDiffs(e.target.checked)}
+              />
+              Podkreślaj zmienione słowa
+            </label>
+            <label className="field field--row">
+              <input
+                type="checkbox"
+                checked={autostartup}
+                onChange={(e) => setAutostartup(e.target.checked)}
+              />
+              Uruchamiaj przy starcie systemu (Windows)
+            </label>
+          </section>
 
-        <label className="field field--row">
-          <input
-            type="checkbox"
-            checked={highlightDiffs}
-            onChange={(e) => setHighlightDiffs(e.target.checked)}
-          />
-          Podświetlaj zmiany (diff)
-        </label>
-
-        <label className="field field--row">
-          <input
-            type="checkbox"
-            checked={autostartup}
-            onChange={(e) => setAutostartup(e.target.checked)}
-          />
-          Uruchamiaj przy starcie systemu (Windows)
-        </label>
-
-        <label className="field">
-          Opóźnienie schowka (ms)
-          <input
-            type="number"
-            min={0}
-            value={clipboardDelayMs}
-            onChange={(e) => setClipboardDelayMs(Number(e.target.value))}
-          />
-        </label>
-
-        <fieldset className="provider-settings">
-          <legend>Prompt systemowy</legend>
-          <label className="field">
+          <section className="group">
+            <h3>Prompt systemowy</h3>
+            <p className="group__hint">
+              Instrukcja wysyłana do AI przy stylach korekty. Style Profesjonalny i Prompt
+              mają własne instrukcje. Puste pole oznacza wbudowany prompt.
+            </p>
             <textarea
-              rows={8}
+              rows={5}
+              aria-label="Prompt systemowy"
               placeholder="Puste = wbudowany domyślny prompt"
               value={ai.system_prompt}
               onChange={(e) => setAi((a) => ({ ...a, system_prompt: e.target.value }))}
             />
-            <span className="field__hint">
-              Instrukcja wysyłana do AI przy stylach korekty (nie dotyczy stylów
-              „profesjonalny" i „prompt", które mają własne instrukcje).
-            </span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setAi((a) => ({ ...a, system_prompt: defaultPrompt }))}
-          >
-            Wstaw domyślny do edycji
-          </button>
-        </fieldset>
-
-        <fieldset className="provider-settings">
-          <legend>OpenAI — długość odpowiedzi (Responses API)</legend>
-          <label className="field">
-            Verbosity
-            <select
-              value={ai.verbosity}
-              onChange={(e) => setAi((a) => ({ ...a, verbosity: e.target.value }))}
+            <button
+              type="button"
+              onClick={() => setAi((a) => ({ ...a, system_prompt: defaultPrompt }))}
             >
-              {VERBOSITIES.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
+              Wstaw domyślny do edycji
+            </button>
+          </section>
+
+          <section className="group">
+            <h3>Dostawcy</h3>
+            <p className="group__hint">
+              Moc rozumowania Off odpowiada najszybciej i wystarcza do korekty. Puste pole
+              klucza zostawia zapisany klucz bez zmian.
+            </p>
+            <div className="group__grid">
+              {PROVIDERS.map((p) => (
+                <div
+                  key={p}
+                  className="provider-card"
+                  style={{ "--pc": PROVIDER_META[p].color } as React.CSSProperties}
+                >
+                  <div className="provider-card__head">
+                    <span className="panel__title">
+                      <span className="panel__dot" />
+                      {PROVIDER_META[p].label}
+                    </span>
+                    <span className={`badge badge--${keysPresent[p] ? "ok" : "warn"}`}>
+                      {keysPresent[p] ? "klucz zapisany" : "brak klucza"}
+                    </span>
+                  </div>
+                  <label className="field">
+                    Model
+                    <input
+                      value={models[p]}
+                      onChange={(e) => setModels((m) => ({ ...m, [p]: e.target.value }))}
+                    />
+                    {errors[`model.${p}`] && (
+                      <span className="field__err">{errors[`model.${p}`]}</span>
+                    )}
+                  </label>
+                  <label className="field">
+                    Klucz API
+                    <input
+                      type="password"
+                      placeholder={keysPresent[p] ? "•••••••• bez zmian" : "wklej klucz"}
+                      value={apiKeys[p] ?? ""}
+                      onChange={(e) => setApiKeys((k) => ({ ...k, [p]: e.target.value }))}
+                    />
+                    <span className="field__hint">Skąd wziąć: {KEY_HINTS[p]}</span>
+                    {errors[`key.${p}`] && (
+                      <span className="field__err">{errors[`key.${p}`]}</span>
+                    )}
+                  </label>
+                  <label className="field">
+                    Moc rozumowania
+                    <select
+                      value={ai.reasoning_levels[p]}
+                      onChange={(e) =>
+                        setAi((a) => ({
+                          ...a,
+                          reasoning_levels: { ...a.reasoning_levels, [p]: e.target.value },
+                        }))
+                      }
+                    >
+                      {LEVELS.map((v) => (
+                        <option key={v} value={v}>
+                          {LEVEL_LABELS[v]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {p === "openai" && (
+                    <label className="field">
+                      Długość odpowiedzi (verbosity)
+                      <select
+                        value={ai.verbosity}
+                        onChange={(e) => setAi((a) => ({ ...a, verbosity: e.target.value }))}
+                      >
+                        {VERBOSITIES.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
               ))}
-            </select>
-          </label>
-        </fieldset>
+            </div>
+          </section>
+        </div>
 
-        {PROVIDERS.map((p) => (
-          <fieldset key={p} className="provider-settings">
-            <legend style={{ color: PROVIDER_META[p].color }}>{PROVIDER_META[p].label}</legend>
-            <label className="field">
-              Model
-              <input
-                value={models[p]}
-                onChange={(e) => setModels((m) => ({ ...m, [p]: e.target.value }))}
-              />
-              {errors[`model.${p}`] && <span className="field__err">{errors[`model.${p}`]}</span>}
-            </label>
-            <label className="field">
-              Klucz API {keysPresent[p] ? "(zapisany — zostaw puste, by nie zmieniać)" : "(brak)"}
-              <input
-                type="password"
-                placeholder={keysPresent[p] ? "••••••••" : "wklej klucz"}
-                value={apiKeys[p] ?? ""}
-                onChange={(e) => setApiKeys((k) => ({ ...k, [p]: e.target.value }))}
-              />
-              <span className="field__hint">🔗 {KEY_HINTS[p]}</span>
-              {errors[`key.${p}`] && <span className="field__err">{errors[`key.${p}`]}</span>}
-            </label>
-            <label className="field">
-              Moc rozumowania
-              <select
-                value={ai.reasoning_levels[p]}
-                onChange={(e) =>
-                  setAi((a) => ({
-                    ...a,
-                    reasoning_levels: { ...a.reasoning_levels, [p]: e.target.value },
-                  }))
-                }
-              >
-                {LEVELS.map((v) => (
-                  <option key={v} value={v}>
-                    {LEVEL_LABELS[v]}
-                  </option>
-                ))}
-              </select>
-              <span className="field__hint">Off = bez myślenia, najszybciej (zalecane do korekty)</span>
-            </label>
-          </fieldset>
-        ))}
-
-        {status && <p className="modal__status">{status}</p>}
-
-        <div className="modal__actions">
-          <button onClick={migrate}>📥 Migruj config.ini</button>
-          <span style={{ flex: 1 }} />
+        <footer className="modal__actions">
+          <button onClick={migrate}>Migruj config.ini</button>
+          <span className="modal__status" role="status">
+            {status}
+          </span>
           <button onClick={onClose}>Anuluj</button>
           <button className="primary" onClick={save}>
             Zapisz
           </button>
-        </div>
+        </footer>
       </div>
     </div>
   );

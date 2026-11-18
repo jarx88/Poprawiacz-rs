@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Icon } from "./Icon";
 import { BuildInfo, getAppBuild } from "./lib/tauri";
 import { completedCount, useCorrectionStore } from "./features/correction/store";
 
@@ -23,7 +24,9 @@ export function Titlebar({ onSettings }: Props) {
         <span className="titlebar__name" data-tauri-drag-region>
           poprawiacz<span className="titlebar__name-dim">.tekstu</span>
         </span>
-        <span className="titlebar__hint">Ctrl+Shift+C</span>
+        <kbd className="titlebar__hint" title="Skrót: popraw zaznaczony tekst">
+          Ctrl+Shift+C
+        </kbd>
         {build && (
           <span className="titlebar__version" title={`build ${build.build}`}>
             v{build.version} · {formatBuiltAt(build.built_at)}
@@ -35,18 +38,29 @@ export function Titlebar({ onSettings }: Props) {
         sesja {sessionId} · api {done}/4
       </span>
       <div className="titlebar__controls">
-        <button className="tb-btn" title="Ustawienia" onClick={onSettings}>
-          ⚙
+        <button
+          className="tb-btn"
+          title="Ustawienia"
+          aria-label="Ustawienia"
+          onClick={onSettings}
+        >
+          <Icon name="settings" />
         </button>
-        <button className="tb-btn" title="Minimalizuj" onClick={() => win.minimize()}>
-          ─
+        <button
+          className="tb-btn"
+          title="Minimalizuj"
+          aria-label="Minimalizuj"
+          onClick={() => win.minimize()}
+        >
+          <Icon name="minus" />
         </button>
         <button
           className="tb-btn tb-btn--close"
           title="Ukryj do zasobnika"
+          aria-label="Ukryj do zasobnika"
           onClick={() => win.hide()}
         >
-          ✕
+          <Icon name="close" />
         </button>
       </div>
     </div>

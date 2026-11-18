@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
+import { Icon } from "../../Icon";
 import {
   cancelProvider,
   cancelSession,
@@ -38,7 +39,14 @@ export function CorrectionView() {
   const [style, setStyle] = useState<Style>("normal");
   const [highlightDiffs, setHighlightDiffs] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; ok?: boolean } | null>(null);
+
+  // A notice is a passing remark, not a state: it clears itself.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   useEffect(() => {
     getSettings()
@@ -61,7 +69,9 @@ export function CorrectionView() {
       onError((e) => applyError(e)),
       onCancelled((e) => applyCancelled(e)),
       onRestarted((e) => applyRestarted(e)),
-      onHotkeyEmpty(() => setNotice("Schowek jest pusty — zaznacz tekst i spróbuj ponownie.")),
+      onHotkeyEmpty(() =>
+        setNotice({ text: "Schowek jest pusty. Zaznacz tekst i spróbuj ponownie." }),
+      ),
     ];
     return () => {
       unsubs.forEach((p) => p.then((fn) => fn()).catch(() => {}));
@@ -79,7 +89,7 @@ export function CorrectionView() {
       }
     }
     if (text.trim() === "") {
-      setNotice("Brak tekstu do poprawy.");
+      setNotice({ text: "Brak tekstu do poprawy. Wpisz go lub skopiuj do schowka." });
       return;
     }
     const id = await startCorrection(text, style);
@@ -90,17 +100,17 @@ export function CorrectionView() {
     try {
       await pasteText(text);
     } catch (e) {
-      setNotice(`Wklejanie nie powiodło się: ${e}`);
+      setNotice({ text: `Wklejanie nie powiodło się: ${e}` });
     }
   };
 
   const onLike = async (corrected: string, correctionStyle: Style): Promise<boolean> => {
     try {
       const count = await rememberCorrection(originalText, corrected, correctionStyle);
-      setNotice(`Zapamiętano dobry przykład (${count}/5).`);
+      setNotice({ text: `Zapamiętano dobry przykład (${count}/5).`, ok: true });
       return true;
     } catch (e) {
-      setNotice(`Nie udało się zapamiętać korekty: ${e}`);
+      setNotice({ text: `Nie udało się zapamiętać korekty: ${e}` });
       return false;
     }
   };
@@ -116,52 +126,73 @@ export function CorrectionView() {
     cancelSession();
   };
 
+  const anyBusy = PROVIDERS.some((p) =>
+    ["loading", "streaming"].includes(panels[p].status),
+  );
+
   return (
     <div className="correction">
-      <div className="correction__bar">
-        <nav className="tabs" aria-label="Styl korekty">
-          {STYLES.map((s) => (
-            <button
-              key={s}
-              className={`tab${s === style ? " tab--active" : ""}`}
-              onClick={() => setStyle(s)}
-            >
-              {STYLE_LABELS[s]}
-            </button>
-          ))}
-        </nav>
-        <div className="correction__actions">
+      <nav className="tabs" aria-label="Styl korekty">
+        {STYLES.map((s) => (
+          <button
+            key={s}
+            className={`tab${s === style ? " tab--active" : ""}`}
+            data-label={STYLE_LABELS[s]}
+            aria-current={s === style ? "true" : undefined}
+            onClick={() => setStyle(s)}
+          >
+            {STYLE_LABELS[s]}
+          </button>
+        ))}
+      </nav>
+
+      {/* The text and everything that acts on it live in one card. */}
+      <div className="composer">
+        <textarea
+          className="composer__input"
+          aria-label="Tekst do poprawy"
+          placeholder="Wklej lub wpisz tekst albo zaznacz go gdziekolwiek i naciśnij Ctrl+Shift+C"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
+        <div className="composer__bar">
           <button
             className="ghost"
+            data-ux="original"
+            title="Pokaż tekst sprzed korekty"
             onClick={() => setShowOriginal(true)}
             disabled={!originalText}
           >
             Oryginał
           </button>
-          <button className="ghost" onClick={cancelAll}>
-            Anuluj
-          </button>
           <button
             className="ghost"
-            title="Minimalizuj"
+            title="Ukryj okno do zasobnika"
             onClick={() => getCurrentWindow().hide()}
           >
             Minimalizuj
+          </button>
+          <span
+            className={`composer__notice${notice?.ok ? " composer__notice--ok" : ""}`}
+            role="status"
+            title={notice?.text}
+          >
+            {notice && <Icon name={notice.ok ? "check" : "alert"} size={14} />}
+            {notice?.text}
+          </span>
+          <button
+            className="ghost"
+            title="Przerwij wszystkie trwające zapytania"
+            onClick={cancelAll}
+            disabled={!anyBusy}
+          >
+            Anuluj wszystko
           </button>
           <button className="cta" onClick={runManual}>
             Popraw
           </button>
         </div>
       </div>
-
-      {notice && <div className="notice">{notice}</div>}
-
-      <textarea
-        className="correction__input"
-        placeholder="Wklej lub wpisz tekst, albo użyj Ctrl+Shift+C…"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-      />
 
       <div className="grid">
         {PROVIDERS.map((p) => (
