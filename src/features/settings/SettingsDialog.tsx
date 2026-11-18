@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../Icon";
 import {
   AiSettings,
@@ -54,21 +54,36 @@ const VERBOSITIES = ["low", "medium", "high"];
  *  field until then, without a key, or after "Wpisz ręcznie…". */
 function ModelField(props: {
   value: string;
+  /** The name the dialog opened with: stays selectable even when the provider
+   *  no longer lists it. */
+  saved: string;
   list: string[] | string | undefined;
+  manual: boolean;
   onChange: (model: string) => void;
   onManual: () => void;
 }) {
-  const { value, list, onChange, onManual } = props;
-  if (!Array.isArray(list))
-    return <input value={value} onChange={(e) => onChange(e.target.value)} />;
-  // the saved name stays selectable even when the provider no longer lists it
-  const options = list.includes(value) ? list : [value, ...list];
+  const { value, saved, list, manual, onChange, onManual } = props;
+  // a list that arrives while a name is being typed waits until the field is left
+  const [typing, setTyping] = useState(false);
+  if (manual || typing || !Array.isArray(list))
+    return (
+      <input
+        value={value}
+        autoFocus={manual}
+        onFocus={() => setTyping(true)}
+        onBlur={() => setTyping(false)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  const unlisted = [...new Set([saved, value])].filter(
+    (name) => !list.includes(name) && (name !== "" || value === ""),
+  );
   return (
     <select
       value={value}
       onChange={(e) => (e.target.value === MANUAL ? onManual() : onChange(e.target.value))}
     >
-      {options.map((id) => (
+      {[...unlisted, ...list].map((id) => (
         <option key={id} value={id}>
           {id || "— wybierz model —"}
         </option>
@@ -97,21 +112,32 @@ export default function SettingsDialog({ onClose }: Props) {
   // per provider: the fetched model names, or why they could not be fetched
   const [modelLists, setModelLists] = useState<Partial<Record<Provider, string[] | string>>>({});
   const [manual, setManual] = useState<Partial<Record<Provider, boolean>>>({});
+  const [savedModels, setSavedModels] = useState<Record<Provider, string>>(emptyModels());
   const { ref, close } = useModal();
 
-  const loadModels = (p: Provider, apiKey?: string) =>
-    listModels(p, apiKey)
+  // Only the newest request of a provider may set its list: an older one
+  // (stored key) can come back after a newer one (key just typed).
+  const requests = useRef<Partial<Record<Provider, number>>>({});
+  const typedKey = (p: Provider) => (apiKeys[p] ?? "").trim();
+  const loadModels = (p: Provider, apiKey?: string) => {
+    const request = (requests.current[p] = (requests.current[p] ?? 0) + 1);
+    return listModels(p, apiKey)
       .then((list) => (list.length ? list : "Dostawca nie zwrócił żadnego modelu."))
       .catch((e) => String(e))
-      .then((result) => setModelLists((l) => ({ ...l, [p]: result })));
+      .then((result) => {
+        if (requests.current[p] === request) setModelLists((l) => ({ ...l, [p]: result }));
+      });
+  };
 
   const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
-    setModels({
+    const loaded = {
       openai: s.models.openai ?? "",
       anthropic: s.models.anthropic ?? "",
       gemini: s.models.gemini ?? "",
       deepseek: s.models.deepseek ?? "",
-    });
+    };
+    setModels(loaded);
+    setSavedModels(loaded);
     setDefaultStyle(s.default_style || "normal");
     setHighlightDiffs(s.highlight_diffs);
     setAutostartup(s.autostartup);
@@ -140,7 +166,9 @@ export default function SettingsDialog({ onClose }: Props) {
         autostartup,
         ai_settings: ai,
         clipboard_delay_ms: clipboardDelayMs,
-        api_keys: apiKeys,
+        // an emptied field means "leave the stored key", as the dialog says;
+        // sending "" would delete it
+        api_keys: Object.fromEntries(Object.entries(apiKeys).filter(([, key]) => key?.trim())),
       });
       close();
     } catch (e) {
@@ -269,7 +297,9 @@ export default function SettingsDialog({ onClose }: Props) {
                     Model
                     <ModelField
                       value={models[p]}
-                      list={manual[p] ? undefined : modelLists[p]}
+                      saved={savedModels[p]}
+                      list={modelLists[p]}
+                      manual={manual[p] ?? false}
                       onChange={(model) => setModels((m) => ({ ...m, [p]: model }))}
                       onManual={() => setManual((m) => ({ ...m, [p]: true }))}
                     />
@@ -280,10 +310,13 @@ export default function SettingsDialog({ onClose }: Props) {
                       {typeof modelLists[p] === "string" && (
                         <>Lista modeli niedostępna: {modelLists[p]} </>
                       )}
-                      <button className="link" onClick={() => openUrl(MODEL_DOCS[p])}>
+                      <button
+                        className="link"
+                        onClick={() => openUrl(MODEL_DOCS[p]).catch((e) => setStatus(String(e)))}
+                      >
                         Nazwy modeli u dostawcy
                       </button>
-                      {manual[p] && (
+                      {manual[p] && Array.isArray(modelLists[p]) && (
                         <>
                           {" · "}
                           <button
@@ -291,6 +324,22 @@ export default function SettingsDialog({ onClose }: Props) {
                             onClick={() => setManual((m) => ({ ...m, [p]: false }))}
                           >
                             Wybierz z listy
+                          </button>
+                        </>
+                      )}
+                      {/* A typed key is sent to the provider only on this click, never
+                          on its own; with the stored key it is a retry after a failure. */}
+                      {(typedKey(p)
+                        ? !validateApiKey(p, typedKey(p))
+                        : keysPresent[p] && typeof modelLists[p] === "string") && (
+                        <>
+                          {" · "}
+                          <button
+                            className="link"
+                            data-ux={`models-${p}`}
+                            onClick={() => loadModels(p, typedKey(p) || undefined)}
+                          >
+                            {typedKey(p) ? "Pobierz listę nowym kluczem" : "Spróbuj ponownie"}
                           </button>
                         </>
                       )}
@@ -303,11 +352,6 @@ export default function SettingsDialog({ onClose }: Props) {
                       placeholder={keysPresent[p] ? "•••••••• bez zmian" : "wklej klucz"}
                       value={apiKeys[p] ?? ""}
                       onChange={(e) => setApiKeys((k) => ({ ...k, [p]: e.target.value }))}
-                      // a freshly pasted key can list the models before it is saved
-                      onBlur={(e) => {
-                        const key = e.target.value.trim();
-                        if (key && !validateApiKey(p, key)) void loadModels(p, key);
-                      }}
                     />
                     <span className="field__hint">Skąd wziąć: {KEY_HINTS[p]}</span>
                     {errors[`key.${p}`] && (
