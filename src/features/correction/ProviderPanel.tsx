@@ -148,7 +148,7 @@ export function ProviderPanel({
               cursor when a panel finishes; cancel and like share the slot before it. */}
           {busy && (
             <button
-              className="icon-btn icon-btn--cancel"
+              className="icon-btn"
               title="Anuluj ten panel"
               aria-label={`Anuluj ${meta.label}`}
               onClick={() => onCancel(provider)}
