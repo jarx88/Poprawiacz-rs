@@ -129,6 +129,7 @@ export function CorrectionView() {
   const anyBusy = PROVIDERS.some((p) =>
     ["loading", "streaming"].includes(panels[p].status),
   );
+  const noSession = PROVIDERS.every((p) => panels[p].status === "idle");
 
   return (
     <div className="correction">
@@ -174,16 +175,19 @@ export function CorrectionView() {
             <Icon name="tray" />
             Minimalizuj
           </button>
-          <span
-            className={`composer__notice${notice?.ok ? " composer__notice--ok" : ""}`}
-            role="status"
-            title={notice?.text}
-          >
-            {notice && <Icon name={notice.ok ? "check" : "alert"} size={14} />}
-            {notice?.text}
+          <span className="composer__notice" role="status">
+            {notice && (
+              <span
+                className={`chip chip--${notice.ok ? "ok" : "warn"}`}
+                title={notice.text}
+              >
+                <Icon name={notice.ok ? "check" : "alert"} size={14} />
+                {notice.text}
+              </span>
+            )}
           </span>
           <button
-            className="ghost"
+            className="ghost ghost--danger"
             title="Przerwij wszystkie trwające zapytania"
             onClick={cancelAll}
             disabled={!anyBusy}
@@ -197,7 +201,7 @@ export function CorrectionView() {
         </div>
       </div>
 
-      <div className="grid">
+      <div className={`grid${noSession ? " grid--empty" : ""}`}>
         {PROVIDERS.map((p) => (
           <ProviderPanel
             key={p}
@@ -213,6 +217,17 @@ export function CorrectionView() {
           />
         ))}
       </div>
+      {noSession && (
+        <div className="empty">
+          <strong>
+            Zaznacz tekst w dowolnym programie i naciśnij <kbd>Ctrl+Shift+C</kbd>
+          </strong>
+          <span>
+            Cztery poprawione wersje pojawią się tutaj obok siebie. Możesz też wkleić tekst
+            powyżej i kliknąć Popraw.
+          </span>
+        </div>
+      )}
 
       {showOriginal && (
         <OriginalTextModal text={originalText} onClose={() => setShowOriginal(false)} />

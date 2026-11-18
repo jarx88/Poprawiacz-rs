@@ -177,7 +177,7 @@ export default function SettingsDialog({ onClose }: Props) {
               mają własne instrukcje. Puste pole oznacza wbudowany prompt.
             </p>
             <textarea
-              rows={5}
+              rows={4}
               aria-label="Prompt systemowy"
               placeholder="Puste = wbudowany domyślny prompt"
               value={ai.system_prompt}
@@ -209,7 +209,7 @@ export default function SettingsDialog({ onClose }: Props) {
                       <span className="panel__dot" />
                       {PROVIDER_META[p].label}
                     </span>
-                    <span className={`badge badge--${keysPresent[p] ? "ok" : "warn"}`}>
+                    <span className={`chip chip--${keysPresent[p] ? "ok" : "warn"}`}>
                       {keysPresent[p] ? "klucz zapisany" : "brak klucza"}
                     </span>
                   </div>

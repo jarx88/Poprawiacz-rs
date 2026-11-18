@@ -60,9 +60,8 @@ export function ProviderPanel({
   const failed = state.status === "error" || state.status === "cancelled";
 
   const body = () => {
-    if (state.status === "idle") {
-      return <p className="panel__note">Tu pojawi się wersja {meta.label}</p>;
-    }
+    // Nothing asked yet: the grid shows one shared hint, the panel stays quiet.
+    if (state.status === "idle") return null;
     if (state.status === "error") {
       return (
         <p className="panel__error" role="alert">
@@ -71,7 +70,7 @@ export function ProviderPanel({
       );
     }
     if (state.status === "cancelled") {
-      return <p className="panel__note">Anulowano. Możesz ponowić tylko ten panel.</p>;
+      return <p className="panel__note">Przerwane przed odpowiedzią. Ponów tylko ten panel.</p>;
     }
     if (busy && state.text === "") {
       return (
@@ -152,6 +151,7 @@ export function ProviderPanel({
               aria-label="Przetwórz ponownie w innym stylu"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
+              disabled={state.status === "idle"}
               onClick={() => setMenuOpen((o) => !o)}
             >
               <Icon name="more" />
@@ -173,6 +173,10 @@ export function ProviderPanel({
                     }}
                   >
                     {STYLE_LABELS[s]}
+                    {/* the style this panel's text is in now */}
+                    {state.status === "done" && state.style === s && (
+                      <Icon name="check" size={14} />
+                    )}
                   </button>
                 ))}
               </div>
@@ -193,21 +197,25 @@ export function ProviderPanel({
 
       <div className="panel__body">{body()}</div>
 
-      {/* No result yet: no button. It appears, always at the panel's bottom edge,
+      {/* No result yet: no footer. It appears, always at the panel's bottom edge,
           once there is something to use or retry. */}
       {failed && (
-        <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
-          <Icon name="retry" /> Ponów {meta.label}
-        </button>
+        <div className="panel__foot">
+          <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
+            <Icon name="retry" /> Ponów {meta.label}
+          </button>
+        </div>
       )}
       {state.status === "done" && (
-        <button
-          className="panel__use"
-          disabled={!canUse}
-          onClick={() => onUse(state.text)}
-        >
-          Użyj {meta.label}
-        </button>
+        <div className="panel__foot">
+          <button
+            className="panel__use"
+            disabled={!canUse}
+            onClick={() => onUse(state.text)}
+          >
+            Użyj {meta.label}
+          </button>
+        </div>
       )}
     </section>
   );
