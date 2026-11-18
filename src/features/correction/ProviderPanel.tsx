@@ -163,7 +163,13 @@ export function ProviderPanel({
               <Icon name="close" />
             </button>
           )}
-          <span className="panel__menu-wrap">
+          {/* focus leaving the button and its list closes the menu (click elsewhere, Tab) */}
+          <span
+            className="panel__menu-wrap"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setMenuOpen(false);
+            }}
+          >
             <button
               data-ux={`menu-${provider}`}
               className="icon-btn"

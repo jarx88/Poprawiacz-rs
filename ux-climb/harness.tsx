@@ -156,6 +156,23 @@ async function main() {
     const ok = state === "menu" ? !pasted && !ran : pasted === FIXED.anthropic && ran;
     if (!ok) throw new Error(`shortcuts misbehaved in "${state}": ${Object.keys(calls)}`);
   }
+  if (variant === "notice") {
+    // a failure notice outlives the 6 s of a confirmation, until the next session
+    const chip = () => document.querySelector(".composer__notice .chip");
+    await emit("hotkey-empty");
+    await sleep(6300);
+    if (!chip()) throw new Error("the failure notice cleared itself");
+    await emit("session-started", { session_id: 8, text: ORIGINAL });
+    await sleep(50);
+    if (chip()) throw new Error("the failure notice survived a new session");
+  }
+  if (variant === "blur") {
+    // focus leaving the menu button and its list closes the menu
+    document.querySelector<HTMLElement>('[data-ux="menu-anthropic"]')!.focus();
+    document.querySelector<HTMLElement>(".composer__input")!.focus();
+    await sleep(50);
+    if (document.querySelector(".panel__menu")) throw new Error("menu stayed open after blur");
+  }
   await document.fonts.ready;
 }
 

@@ -43,9 +43,10 @@ export function CorrectionView() {
   const [showOriginal, setShowOriginal] = useState(false);
   const [notice, setNotice] = useState<{ text: string; ok?: boolean } | null>(null);
 
-  // A notice is a passing remark, not a state: it clears itself.
+  // A confirmation clears itself; a failure stays until the next action, so it is
+  // still there when the window comes back from the tray.
   useEffect(() => {
-    if (!notice) return;
+    if (!notice?.ok) return;
     const t = setTimeout(() => setNotice(null), 6000);
     return () => clearTimeout(t);
   }, [notice]);
@@ -63,6 +64,7 @@ export function CorrectionView() {
   useEffect(() => {
     const unsubs = [
       onSessionStarted((e) => {
+        setNotice(null);
         setInput(e.text);
         startSession(e.session_id, e.text);
       }),
