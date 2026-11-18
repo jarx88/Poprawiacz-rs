@@ -202,24 +202,25 @@ async function main() {
     if (!active()?.matches('[data-ux="original"]')) throw new Error("focus did not return to the opener");
   }
   if (variant === "models") {
-    // the fetched list is a select; its last option gives the text field back
+    // the fetched list is a select; one toggle switches to a text field and back
     const card = document.querySelector(".provider-card")!; // OpenAI
-    const select = card.querySelector("select")!;
-    const names = [...select.options].map((o) => o.textContent);
+    const names = [...card.querySelector("select")!.options].map((o) => o.textContent);
     if (!names.includes("openai-nowszy-model")) throw new Error(`no fetched models: ${names}`);
-    select.value = select.options[select.options.length - 1].value;
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+    const toggle = card.querySelector<HTMLElement>('[data-ux="manual-openai"]')!;
+    toggle.focus();
+    toggle.click();
     await sleep(50);
-    if (!card.querySelector('label input:not([type="password"])'))
-      throw new Error('"Wpisz ręcznie…" did not bring the text field back');
+    if (!document.activeElement?.matches('.provider-card label input:not([type="password"])'))
+      throw new Error('"Wpisz ręcznie" did not focus a text field');
     // DeepSeek has no stored key: a typed one lists the models, but only on a click
     const deepseek = [...document.querySelectorAll(".provider-card")].at(-1)!;
     const keyField = deepseek.querySelector<HTMLInputElement>('input[type="password"]')!;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
-      keyField,
-      "sk-0123456789abcdef",
-    );
-    keyField.dispatchEvent(new Event("input", { bubbles: true }));
+    const type = (text: string) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(keyField, text);
+      keyField.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    keyField.focus();
+    type("sk-0123456789abcdef");
     keyField.blur();
     await sleep(50);
     if ((calls.list_models as { provider: string }).provider === "deepseek")
@@ -231,6 +232,11 @@ async function main() {
       throw new Error(`the typed key did not list the models: ${JSON.stringify(sent)}`);
     if (!deepseek.querySelector("select option[value='deepseek-nowszy-model']"))
       throw new Error("the list fetched with the typed key is not shown");
+    // the trial key is removed again: its list must not stay
+    type("");
+    await sleep(50);
+    if (deepseek.querySelector("select option[value='deepseek-nowszy-model']"))
+      throw new Error("the list of a removed key is still shown");
   }
   await document.fonts.ready;
 }

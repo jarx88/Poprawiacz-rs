@@ -37,8 +37,6 @@ const MODEL_DOCS: Record<Provider, string> = {
   gemini: "https://ai.google.dev/gemini-api/docs/models",
   deepseek: "https://api-docs.deepseek.com/quick_start/pricing",
 };
-/** The select's last option: switch this provider to a typed model name. */
-const MANUAL = "\u0000manual";
 
 const LEVELS = ["off", "low", "medium", "high", "max"] as const;
 const LEVEL_LABELS: Record<string, string> = {
@@ -51,7 +49,7 @@ const LEVEL_LABELS: Record<string, string> = {
 const VERBOSITIES = ["low", "medium", "high"];
 
 /** The model name: a choice from the provider's list once it is fetched, a text
- *  field until then, without a key, or after "Wpisz ręcznie…". */
+ *  field until then, without a key, or in manual mode. */
 function ModelField(props: {
   value: string;
   /** The name the dialog opened with: stays selectable even when the provider
@@ -60,9 +58,8 @@ function ModelField(props: {
   list: string[] | string | undefined;
   manual: boolean;
   onChange: (model: string) => void;
-  onManual: () => void;
 }) {
-  const { value, saved, list, manual, onChange, onManual } = props;
+  const { value, saved, list, manual, onChange } = props;
   // a list that arrives while a name is being typed waits until the field is left
   const [typing, setTyping] = useState(false);
   if (manual || typing || !Array.isArray(list))
@@ -79,16 +76,12 @@ function ModelField(props: {
     (name) => !list.includes(name) && (name !== "" || value === ""),
   );
   return (
-    <select
-      value={value}
-      onChange={(e) => (e.target.value === MANUAL ? onManual() : onChange(e.target.value))}
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
       {[...unlisted, ...list].map((id) => (
         <option key={id} value={id}>
           {id || "— wybierz model —"}
         </option>
       ))}
-      <option value={MANUAL}>Wpisz ręcznie…</option>
     </select>
   );
 }
@@ -119,6 +112,12 @@ export default function SettingsDialog({ onClose }: Props) {
   // (stored key) can come back after a newer one (key just typed).
   const requests = useRef<Partial<Record<Provider, number>>>({});
   const typedKey = (p: Provider) => (apiKeys[p] ?? "").trim();
+  /** The typed key was removed again: back to what the stored key lists. */
+  const restoreModels = (p: Provider) => {
+    if (keysPresent[p]) return void loadModels(p);
+    requests.current[p] = (requests.current[p] ?? 0) + 1; // drop a pending answer
+    setModelLists((l) => ({ ...l, [p]: undefined }));
+  };
   const loadModels = (p: Provider, apiKey?: string) => {
     const request = (requests.current[p] = (requests.current[p] ?? 0) + 1);
     return listModels(p, apiKey)
@@ -168,7 +167,9 @@ export default function SettingsDialog({ onClose }: Props) {
         clipboard_delay_ms: clipboardDelayMs,
         // an emptied field means "leave the stored key", as the dialog says;
         // sending "" would delete it
-        api_keys: Object.fromEntries(Object.entries(apiKeys).filter(([, key]) => key?.trim())),
+        api_keys: Object.fromEntries(
+          PROVIDERS.map((p) => [p, typedKey(p)]).filter(([, key]) => key),
+        ),
       });
       close();
     } catch (e) {
@@ -301,7 +302,6 @@ export default function SettingsDialog({ onClose }: Props) {
                       list={modelLists[p]}
                       manual={manual[p] ?? false}
                       onChange={(model) => setModels((m) => ({ ...m, [p]: model }))}
-                      onManual={() => setManual((m) => ({ ...m, [p]: true }))}
                     />
                     {errors[`model.${p}`] && (
                       <span className="field__err">{errors[`model.${p}`]}</span>
@@ -310,20 +310,25 @@ export default function SettingsDialog({ onClose }: Props) {
                       {typeof modelLists[p] === "string" && (
                         <>Lista modeli niedostępna: {modelLists[p]} </>
                       )}
+                      {!keysPresent[p] && modelLists[p] === undefined && (
+                        <>Lista modeli wymaga klucza API. </>
+                      )}
                       <button
                         className="link"
                         onClick={() => openUrl(MODEL_DOCS[p]).catch((e) => setStatus(String(e)))}
                       >
                         Nazwy modeli u dostawcy
                       </button>
-                      {manual[p] && Array.isArray(modelLists[p]) && (
+                      {/* one toggle that stays in place, so it keeps the keyboard focus */}
+                      {Array.isArray(modelLists[p]) && (
                         <>
                           {" · "}
                           <button
                             className="link"
-                            onClick={() => setManual((m) => ({ ...m, [p]: false }))}
+                            data-ux={`manual-${p}`}
+                            onClick={() => setManual((m) => ({ ...m, [p]: !m[p] }))}
                           >
-                            Wybierz z listy
+                            {manual[p] ? "Wybierz z listy" : "Wpisz ręcznie"}
                           </button>
                         </>
                       )}
@@ -351,7 +356,10 @@ export default function SettingsDialog({ onClose }: Props) {
                       type="password"
                       placeholder={keysPresent[p] ? "•••••••• bez zmian" : "wklej klucz"}
                       value={apiKeys[p] ?? ""}
-                      onChange={(e) => setApiKeys((k) => ({ ...k, [p]: e.target.value }))}
+                      onChange={(e) => {
+                        setApiKeys((k) => ({ ...k, [p]: e.target.value }));
+                        if (typedKey(p) && !e.target.value.trim()) restoreModels(p);
+                      }}
                     />
                     <span className="field__hint">Skąd wziąć: {KEY_HINTS[p]}</span>
                     {errors[`key.${p}`] && (

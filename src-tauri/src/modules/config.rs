@@ -160,6 +160,7 @@ pub fn get_settings(app: AppHandle) -> SettingsView {
 
 /// Payload for saving settings. Keys are optional; a present non-empty value is
 /// written to the keychain, an empty string clears it, `None` leaves it intact.
+/// The settings dialog sends only non-empty keys: it never clears one.
 #[derive(Debug, Deserialize)]
 pub struct SaveSettingsPayload {
     pub models: ProviderModels,
