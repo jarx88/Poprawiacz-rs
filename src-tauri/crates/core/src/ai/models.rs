@@ -48,9 +48,8 @@ pub async fn list_models(
 }
 
 /// Words in a model id that mark it as something other than a text model.
-const NOT_TEXT: [&str; 12] = [
-    "audio", "realtime", "tts", "transcribe", "image", "embedding", "moderation", "search",
-    "instruct", "live", "vision", "aqa",
+const NOT_TEXT: [&str; 9] = [
+    "audio", "realtime", "tts", "transcribe", "image", "search", "instruct", "live", "vision",
 ];
 
 /// Model ids from a list response. OpenAI and Gemini also list speech, image
@@ -76,10 +75,12 @@ pub fn parse_models(provider: Provider, body: &Value) -> Vec<String> {
             .filter_map(|m| m["id"].as_str())
             .filter(|id| match provider {
                 Provider::OpenAI => {
-                    let chat = id.starts_with("gpt-")
-                        || id.starts_with("chatgpt-")
+                    // a fine-tuned model ("ft:gpt-4o-mini:org::id") goes by its base
+                    let base = id.strip_prefix("ft:").unwrap_or(id);
+                    let chat = base.starts_with("gpt-")
+                        || base.starts_with("chatgpt-")
                         // the reasoning families: o1, o3, o4-mini…
-                        || (id.starts_with('o') && id[1..].starts_with(|c: char| c.is_ascii_digit()));
+                        || (base.starts_with('o') && base[1..].starts_with(|c: char| c.is_ascii_digit()));
                     chat && text_model(id)
                 }
                 _ => true,
@@ -88,7 +89,6 @@ pub fn parse_models(provider: Provider, body: &Value) -> Vec<String> {
             .collect(),
     };
     ids.sort();
-    ids.dedup();
     ids
 }
 
@@ -103,9 +103,12 @@ mod tests {
             { "id": "gpt-5-mini" }, { "id": "o4-mini" }, { "id": "chatgpt-4o-latest" },
             { "id": "gpt-4o-audio-preview" }, { "id": "gpt-4o-mini-tts" }, { "id": "gpt-image-1" },
             { "id": "text-embedding-3-small" }, { "id": "whisper-1" }, { "id": "omni-moderation-latest" },
-            { "id": "gpt-5-mini" },
+            { "id": "ft:gpt-4o-mini:org::abc" },
         ]});
-        assert_eq!(parse_models(Provider::OpenAI, &body), ["chatgpt-4o-latest", "gpt-5-mini", "o4-mini"]);
+        assert_eq!(
+            parse_models(Provider::OpenAI, &body),
+            ["chatgpt-4o-latest", "ft:gpt-4o-mini:org::abc", "gpt-5-mini", "o4-mini"]
+        );
     }
 
     #[test]

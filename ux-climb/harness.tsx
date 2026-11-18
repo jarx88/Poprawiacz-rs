@@ -212,6 +212,25 @@ async function main() {
     await sleep(50);
     if (!card.querySelector('label input:not([type="password"])'))
       throw new Error('"Wpisz ręcznie…" did not bring the text field back');
+    // DeepSeek has no stored key: a typed one lists the models, but only on a click
+    const deepseek = [...document.querySelectorAll(".provider-card")].at(-1)!;
+    const keyField = deepseek.querySelector<HTMLInputElement>('input[type="password"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+      keyField,
+      "sk-0123456789abcdef",
+    );
+    keyField.dispatchEvent(new Event("input", { bubbles: true }));
+    keyField.blur();
+    await sleep(50);
+    if ((calls.list_models as { provider: string }).provider === "deepseek")
+      throw new Error("a typed key was sent without a click");
+    click('[data-ux="models-deepseek"]');
+    await sleep(50);
+    const sent = calls.list_models as { provider: string; apiKey?: string };
+    if (sent.provider !== "deepseek" || sent.apiKey !== "sk-0123456789abcdef")
+      throw new Error(`the typed key did not list the models: ${JSON.stringify(sent)}`);
+    if (!deepseek.querySelector("select option[value='deepseek-nowszy-model']"))
+      throw new Error("the list fetched with the typed key is not shown");
   }
   await document.fonts.ready;
 }

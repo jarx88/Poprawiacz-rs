@@ -16,9 +16,11 @@ export function validateApiKey(provider: Provider, key: string): string | null {
   const k = key.trim();
   if (k === "") return null; // empty = leave unchanged / clear
   if (k.length < 10) return "Klucz wygląda na zbyt krótki";
+  // an Anthropic key also starts with "sk-": it must not pass for the others
+  const plainSk = k.startsWith("sk-") && !k.startsWith("sk-ant-");
   switch (provider) {
     case "openai":
-      return k.startsWith("sk-") ? null : "Klucz OpenAI zwykle zaczyna się od 'sk-'";
+      return plainSk ? null : "Klucz OpenAI zwykle zaczyna się od 'sk-' (ale nie 'sk-ant-')";
     case "anthropic":
       return k.startsWith("sk-ant-")
         ? null
@@ -29,7 +31,7 @@ export function validateApiKey(provider: Provider, key: string): string | null {
         ? null
         : "Klucz Gemini zwykle zaczyna się od 'AQ.' (lub starszy 'AIza')";
     case "deepseek":
-      return k.startsWith("sk-") ? null : "Klucz DeepSeek zwykle zaczyna się od 'sk-'";
+      return plainSk ? null : "Klucz DeepSeek zwykle zaczyna się od 'sk-' (ale nie 'sk-ant-')";
   }
 }
 

@@ -20,6 +20,9 @@ describe("validateApiKey", () => {
     expect(validateApiKey("openai", "sk-proj-abcdefghijk")).toBeNull();
     expect(validateApiKey("anthropic", "sk-ant-abcdefghijk")).toBeNull();
     expect(validateApiKey("anthropic", "sk-abcdefghijk")).toMatch(/sk-ant-/);
+    // an Anthropic key pasted into another provider's field
+    expect(validateApiKey("openai", "sk-ant-abcdefghijk")).toMatch(/sk-ant-/);
+    expect(validateApiKey("deepseek", "sk-ant-abcdefghijk")).toMatch(/sk-ant-/);
     expect(validateApiKey("gemini", "AIzaSyABCDEFGHIJK")).toBeNull();
     expect(validateApiKey("gemini", "AQ.Ab8RN6abcdefghijk")).toBeNull();
     expect(validateApiKey("gemini", "xyzabcdefghijk")).toMatch(/AQ\./);
