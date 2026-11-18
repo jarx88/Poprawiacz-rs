@@ -101,8 +101,13 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 .titlebar__session {
-  margin-right: 10px;
+  margin-right: 6px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
   color: var(--text-2);
+}
+.titlebar__ok {
+  color: var(--ok);
 }
 .titlebar__controls {
   display: flex;
@@ -170,6 +175,10 @@ button.ghost:hover:not(:disabled) {
   color: var(--text);
   background: rgba(255, 255, 255, 0.06);
 }
+/* unavailable: loses its outline as well as its strength */
+button.ghost:disabled {
+  border-color: transparent;
+}
 /* colour for meaning: the action that stops work */
 button.ghost--danger:not(:disabled) .icon {
   color: var(--danger);
@@ -189,6 +198,16 @@ button.primary:hover:not(:disabled) {
   background: #dedee6;
   border-color: transparent;
 }
+/* answers are on screen: running again is no longer the main thing to do */
+button.cta--quiet,
+button.cta--quiet:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--text-2);
+}
+button.cta--quiet:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
 /* square icon-only button: panel header, dialog close */
 .icon-btn {
   width: 28px;
@@ -207,6 +226,15 @@ button.primary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
   border-color: transparent;
 }
+/* open menu: the button shows which panel the menu belongs to */
+.icon-btn[aria-expanded="true"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.16);
+}
+/* cancel stands apart from the menu next to it */
+.icon-btn--cancel {
+  background: rgba(255, 255, 255, 0.08);
+}
 .icon-btn--on,
 .icon-btn--on:disabled {
   opacity: 1;
@@ -223,7 +251,7 @@ input,
 textarea {
   background: var(--bg);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid #3a3a44;
   border-radius: var(--r-control);
   padding: 7px 10px;
   font-size: var(--fs-sm);
@@ -448,8 +476,9 @@ input[type="checkbox"] {
 .panel--idle .panel__head {
   background: color-mix(in srgb, var(--pc) 12%, transparent);
 }
+/* cancelled keeps a trace of the provider colour: easy to find the panel to retry */
 .panel--cancelled .panel__head {
-  background: transparent;
+  background: color-mix(in srgb, var(--pc) 9%, transparent);
   border-bottom-color: var(--border-soft);
 }
 .panel--error .panel__head {
@@ -492,6 +521,7 @@ input[type="checkbox"] {
 }
 .panel__status--done {
   color: var(--text);
+  font-weight: 600;
 }
 .panel__status--done .icon {
   color: var(--ok);
@@ -523,7 +553,7 @@ input[type="checkbox"] {
 }
 .panel__menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 2px);
   right: 0;
   z-index: 10;
   background: var(--raised);
@@ -582,10 +612,10 @@ input[type="checkbox"] {
   flex: 1;
   overflow: auto;
   /* the bottom padding lets the last line scroll clear of the fade */
-  padding: 10px 14px 16px;
+  padding: 10px 14px 26px;
   min-height: 0;
   /* text running under the bottom edge fades out: there is more to scroll */
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
 }
 .panel__text {
   margin: 0;
@@ -597,11 +627,12 @@ input[type="checkbox"] {
   line-height: 1.6;
 }
 /* idle and cancelled: a quiet line in the middle of the panel */
+/* cancelled and error both speak from the top-left, where the answer would start */
 .panel__note {
-  margin: auto;
+  margin: 4px 0;
   color: var(--text-2);
-  font-size: var(--fs-sm);
-  text-align: center;
+  font-size: var(--fs-md);
+  line-height: 1.5;
 }
 .panel__error {
   margin: 4px 0;
@@ -609,6 +640,13 @@ input[type="checkbox"] {
   border-left: 2px solid var(--danger);
   font-size: var(--fs-md);
   line-height: 1.5;
+}
+.panel__error strong {
+  display: block;
+  color: var(--danger);
+}
+.panel__error p {
+  margin: 2px 0 0;
 }
 /* waiting for the first words: placeholder lines where the text will be */
 .panel__skeleton {
@@ -681,7 +719,7 @@ input[type="checkbox"] {
 }
 .panel__use--retry {
   background: transparent;
-  border-color: #44444f;
+  border-color: var(--text-2);
   color: var(--text);
 }
 .panel__use--retry:hover:not(:disabled) {
@@ -730,10 +768,12 @@ input[type="checkbox"] {
 .modal__body {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 16px 18px 18px;
+  gap: 26px;
+  padding: 16px 18px 30px;
   overflow: auto;
   min-height: 0;
+  /* same cue as the panels: content fading at the bottom means there is more */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
 }
 .modal__actions {
   display: flex;
