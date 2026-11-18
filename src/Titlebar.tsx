@@ -24,9 +24,7 @@ export function Titlebar({ onSettings }: Props) {
         <span className="titlebar__name" data-tauri-drag-region>
           poprawiacz<span className="titlebar__name-dim">.tekstu</span>
         </span>
-        <kbd className="titlebar__hint" title="Skrót: popraw zaznaczony tekst">
-          Ctrl+Shift+C
-        </kbd>
+        <kbd title="Skrót: popraw zaznaczony tekst">Ctrl+Shift+C</kbd>
         {build && (
           <span className="titlebar__version" title={`build ${build.build}`}>
             v{build.version} · {formatBuiltAt(build.built_at)}
@@ -39,12 +37,13 @@ export function Titlebar({ onSettings }: Props) {
       </span>
       <div className="titlebar__controls">
         <button
-          className="tb-btn"
+          className="tb-btn tb-btn--text"
           title="Ustawienia"
           aria-label="Ustawienia"
           onClick={onSettings}
         >
           <Icon name="settings" />
+          <span>Ustawienia</span>
         </button>
         <button
           className="tb-btn"
