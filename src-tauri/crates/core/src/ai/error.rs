@@ -57,7 +57,7 @@ impl AiError {
                 let lead = match status {
                     Some(401 | 403) => "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach.",
                     Some(404) => "Dostawca nie zna tego modelu. Sprawdź nazwę modelu w ustawieniach.",
-                    Some(429) => "Limit zapytań albo środków u dostawcy jest wyczerpany. Spróbuj za chwilę.",
+                    Some(429 | 402) => "Limit zapytań albo środków u dostawcy jest wyczerpany. Spróbuj za chwilę.",
                     Some(400 | 422) => "Dostawca odrzucił zapytanie. Sprawdź model i klucz w ustawieniach.",
                     Some(s) if *s >= 500 => "Serwer dostawcy ma awarię albo jest przeciążony. Spróbuj za chwilę.",
                     Some(_) => "Dostawca zwrócił błąd.",

@@ -1,9 +1,11 @@
+import type { KeyAccount } from "../../lib/tauri";
 import { Provider, STYLES, Style } from "../correction/types";
 
 export interface SettingsForm {
+  /** The model names of the route in use (direct or OpenRouter). */
   models: Record<Provider, string>;
   defaultStyle: string;
-  apiKeys: Partial<Record<Provider, string>>;
+  apiKeys: Partial<Record<KeyAccount, string>>;
 }
 
 export interface ValidationResult {
@@ -11,16 +13,17 @@ export interface ValidationResult {
   errors: Partial<Record<string, string>>;
 }
 
-/** Loose per-provider sanity checks for pasted API keys. */
-export function validateApiKey(provider: Provider, key: string): string | null {
+/** Loose per-account sanity checks for pasted API keys. */
+export function validateApiKey(account: KeyAccount, key: string): string | null {
   const k = key.trim();
   if (k === "") return null; // empty = leave the stored key unchanged
   if (k.length < 10) return "Klucz wygląda na zbyt krótki";
-  // an Anthropic key also starts with "sk-": it must not pass for the others
-  const plainSk = k.startsWith("sk-") && !k.startsWith("sk-ant-");
-  switch (provider) {
+  // Anthropic and OpenRouter keys also start with "sk-": they must not pass
+  // for OpenAI or DeepSeek
+  const plainSk = k.startsWith("sk-") && !k.startsWith("sk-ant-") && !k.startsWith("sk-or-");
+  switch (account) {
     case "openai":
-      return plainSk ? null : "Klucz OpenAI zwykle zaczyna się od 'sk-' (ale nie 'sk-ant-')";
+      return plainSk ? null : "Klucz OpenAI zwykle zaczyna się od 'sk-' (ale nie 'sk-ant-' ani 'sk-or-')";
     case "anthropic":
       return k.startsWith("sk-ant-")
         ? null
@@ -31,7 +34,9 @@ export function validateApiKey(provider: Provider, key: string): string | null {
         ? null
         : "Klucz Gemini zwykle zaczyna się od 'AQ.' (lub starszy 'AIza')";
     case "deepseek":
-      return plainSk ? null : "Klucz DeepSeek zwykle zaczyna się od 'sk-' (ale nie 'sk-ant-')";
+      return plainSk ? null : "Klucz DeepSeek zwykle zaczyna się od 'sk-' (ale nie 'sk-ant-' ani 'sk-or-')";
+    case "openrouter":
+      return k.startsWith("sk-or-") ? null : "Klucz OpenRouter zwykle zaczyna się od 'sk-or-'";
   }
 }
 
@@ -52,10 +57,9 @@ export function validateSettings(form: SettingsForm): ValidationResult {
     }
   }
 
-  for (const provider of Object.keys(form.apiKeys) as Provider[]) {
-    const key = form.apiKeys[provider] ?? "";
-    const err = validateApiKey(provider, key);
-    if (err) errors[`key.${provider}`] = err;
+  for (const account of Object.keys(form.apiKeys) as KeyAccount[]) {
+    const err = validateApiKey(account, form.apiKeys[account] ?? "");
+    if (err) errors[`key.${account}`] = err;
   }
 
   return { ok: Object.keys(errors).length === 0, errors };

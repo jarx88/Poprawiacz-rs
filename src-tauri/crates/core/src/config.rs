@@ -30,18 +30,20 @@ pub struct ProviderModels {
 }
 
 impl ProviderModels {
-    /// Resolved model, falling back to the documented default.
-    pub fn resolved(&self, provider: Provider) -> String {
+    /// The model set for `provider`, if any.
+    pub fn chosen(&self, provider: Provider) -> Option<&str> {
         let chosen = match provider {
             Provider::OpenAI => &self.openai,
             Provider::Anthropic => &self.anthropic,
             Provider::Gemini => &self.gemini,
             Provider::DeepSeek => &self.deepseek,
         };
-        chosen
-            .clone()
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| default_model(provider).to_string())
+        chosen.as_deref().filter(|s| !s.trim().is_empty())
+    }
+
+    /// Resolved model, falling back to the documented default.
+    pub fn resolved(&self, provider: Provider) -> String {
+        self.chosen(provider).unwrap_or_else(|| default_model(provider)).to_string()
     }
 }
 

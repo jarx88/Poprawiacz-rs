@@ -92,6 +92,7 @@ pub fn run() {
             ai::cancel_session,
             ai::cancel_provider,
             ai::list_models,
+            ai::list_openrouter_models,
             clipboard::read_clipboard,
             clipboard::write_clipboard,
             clipboard::paste_text,

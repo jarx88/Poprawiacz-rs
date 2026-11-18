@@ -9,6 +9,7 @@ pub mod error;
 pub mod gemini;
 pub mod models;
 pub mod openai;
+pub mod openrouter;
 pub mod retry;
 pub mod types;
 
@@ -33,6 +34,12 @@ pub fn build_client() -> Result<Client, reqwest::Error> {
 }
 
 fn build_request(client: &Client, req: &CorrectionRequest) -> RequestBuilder {
+    if req.openrouter {
+        return client
+            .post(openrouter::ENDPOINT)
+            .bearer_auth(&req.api_key)
+            .json(&openrouter::build_body(req));
+    }
     match req.provider {
         Provider::OpenAI => client
             .post(openai::endpoint(&req.model))
@@ -61,8 +68,11 @@ fn build_request(client: &Client, req: &CorrectionRequest) -> RequestBuilder {
     }
 }
 
-fn parse_body(provider: Provider, body: &Value) -> Result<String, AiError> {
-    match provider {
+fn parse_body(req: &CorrectionRequest, body: &Value) -> Result<String, AiError> {
+    if req.openrouter {
+        return openrouter::parse_response(body);
+    }
+    match req.provider {
         Provider::OpenAI => openai::parse_response(body),
         Provider::Anthropic => anthropic::parse_response(body),
         Provider::Gemini => gemini::parse_response(body),
@@ -71,8 +81,11 @@ fn parse_body(provider: Provider, body: &Value) -> Result<String, AiError> {
 }
 
 /// Dispatch one streamed SSE line to the provider's delta parser.
-fn parse_stream_line(provider: Provider, line: &str) -> Result<Option<String>, AiError> {
-    match provider {
+fn parse_stream_line(req: &CorrectionRequest, line: &str) -> Result<Option<String>, AiError> {
+    if req.openrouter {
+        return openrouter::parse_sse_line(line);
+    }
+    match req.provider {
         Provider::OpenAI => openai::parse_sse_line(line),
         Provider::Anthropic => anthropic::parse_sse_line(line),
         Provider::Gemini => gemini::parse_sse_line(line),
@@ -128,7 +141,7 @@ async fn send_once(
         },
     };
 
-    parse_body(provider, &body).map(|t| strip_ai_dashes(&t))
+    parse_body(req, &body).map(|t| strip_ai_dashes(&t))
 }
 
 /// Models sneak em/en dashes into output despite the prompt ban — a dead
@@ -143,6 +156,18 @@ fn strip_ai_dashes(s: &str) -> String {
 
 /// Run one correction (non-streaming) with retry, timeout and cancellation.
 pub async fn correct(
+    client: &Client,
+    req: &CorrectionRequest,
+    cancel: &CancellationToken,
+) -> Result<String, AiError> {
+    match correct_attempts(client, req, cancel).await {
+        // once per model: the repeated request asks for the least reasoning instead of none
+        Err(e) if openrouter::learn_mandatory_reasoning(req, &e) => correct_attempts(client, req, cancel).await,
+        result => result,
+    }
+}
+
+async fn correct_attempts(
     client: &Client,
     req: &CorrectionRequest,
     cancel: &CancellationToken,
@@ -164,7 +189,8 @@ pub async fn correct(
 /// configured model is overloaded (503), out of free-tier quota (429) or
 /// times out.
 fn fallback_request(req: &CorrectionRequest) -> Option<CorrectionRequest> {
-    if req.provider != Provider::Gemini {
+    // the fallback is a direct Gemini model name: OpenRouter would not know it
+    if req.openrouter || req.provider != Provider::Gemini {
         return None;
     }
     gemini::fallback_model(&req.model).map(|model| CorrectionRequest { model: model.into(), ..req.clone() })
@@ -183,6 +209,21 @@ pub async fn correct_stream<F>(
 where
     F: FnMut(&str),
 {
+    match stream_attempts(client, req, cancel, &mut on_chunk).await {
+        // a refusal comes before any chunk, so repeating the request is safe
+        Err(e) if openrouter::learn_mandatory_reasoning(req, &e) => {
+            stream_attempts(client, req, cancel, &mut on_chunk).await
+        }
+        result => result,
+    }
+}
+
+async fn stream_attempts<F: FnMut(&str)>(
+    client: &Client,
+    req: &CorrectionRequest,
+    cancel: &CancellationToken,
+    mut on_chunk: &mut F,
+) -> Result<String, AiError> {
     let fallback = fallback_request(req);
     let retries = if fallback.is_some() { 0 } else { MAX_RETRIES };
     let (result, emitted) = stream_with_retries(client, req, cancel, retries, &mut on_chunk).await;
@@ -255,6 +296,8 @@ async fn stream_once<F: FnMut(&str)>(
     let mut stream = resp.bytes_stream();
     let mut buf = String::new();
     let mut full = String::new();
+    // OpenRouter ends a stream the way OpenAI does, with `data: [DONE]`
+    let done_like = if req.openrouter { Provider::OpenAI } else { provider };
 
     loop {
         // Idle timeout: abort if no data arrives within the provider timeout
@@ -275,11 +318,11 @@ async fn stream_once<F: FnMut(&str)>(
         let mut done = false;
         while let Some(pos) = buf.find('\n') {
             let line: String = buf.drain(..=pos).collect();
-            if is_stream_done(provider, &line) {
+            if is_stream_done(done_like, &line) {
                 done = true;
                 break;
             }
-            if let Some(delta) = parse_stream_line(provider, &line)? {
+            if let Some(delta) = parse_stream_line(req, &line)? {
                 let delta = strip_ai_dashes(&delta);
                 full.push_str(&delta);
                 on_chunk(&delta);
@@ -291,7 +334,7 @@ async fn stream_once<F: FnMut(&str)>(
     }
     // flush any trailing line without newline
     if !buf.trim().is_empty() {
-        if let Some(delta) = parse_stream_line(provider, &buf)? {
+        if let Some(delta) = parse_stream_line(req, &buf)? {
             let delta = strip_ai_dashes(&delta);
             full.push_str(&delta);
             on_chunk(&delta);
@@ -324,6 +367,7 @@ mod tests {
             verbosity: "medium".into(),
             custom_system_prompt: None,
             correction_examples: Vec::new(),
+            openrouter: false,
         };
         let fb = fallback_request(&req).unwrap();
         assert_eq!(fb.model, gemini::FALLBACK_MODEL);

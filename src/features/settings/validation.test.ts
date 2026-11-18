@@ -23,6 +23,10 @@ describe("validateApiKey", () => {
     // an Anthropic key pasted into another provider's field
     expect(validateApiKey("openai", "sk-ant-abcdefghijk")).toMatch(/sk-ant-/);
     expect(validateApiKey("deepseek", "sk-ant-abcdefghijk")).toMatch(/sk-ant-/);
+    // the OpenRouter key has its own field
+    expect(validateApiKey("openrouter", "sk-or-v1-abcdefghijk")).toBeNull();
+    expect(validateApiKey("openrouter", "sk-proj-abcdefghijk")).toMatch(/sk-or-/);
+    expect(validateApiKey("openai", "sk-or-v1-abcdefghijk")).toMatch(/sk-or-/);
     expect(validateApiKey("gemini", "AIzaSyABCDEFGHIJK")).toBeNull();
     expect(validateApiKey("gemini", "AQ.Ab8RN6abcdefghijk")).toBeNull();
     expect(validateApiKey("gemini", "xyzabcdefghijk")).toMatch(/AQ\./);
