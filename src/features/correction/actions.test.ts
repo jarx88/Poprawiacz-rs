@@ -6,7 +6,9 @@ const key = (key: string, mods: Partial<KeyboardEvent> = {}) => ({
   ctrlKey: false,
   altKey: false,
   metaKey: false,
+  shiftKey: false,
   repeat: false,
+  isComposing: false,
   ...mods,
 });
 
@@ -27,6 +29,8 @@ describe("keyAction", () => {
     expect(keyAction(key("1", { ctrlKey: true }), false)).toBeNull();
     expect(keyAction(key("1", { altKey: true }), false)).toBeNull();
     expect(keyAction(key("1", { repeat: true }), false)).toBeNull();
+    expect(keyAction(key("1", { isComposing: true }), false)).toBeNull();
+    expect(keyAction(key("Enter", { ctrlKey: true, shiftKey: true }), false)).toBeNull();
   });
 });
 

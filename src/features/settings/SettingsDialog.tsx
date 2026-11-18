@@ -119,6 +119,7 @@ export default function SettingsDialog({ onClose }: Props) {
             className="icon-btn"
             title="Zamknij bez zapisywania"
             aria-label="Zamknij bez zapisywania"
+            autoFocus
             onClick={onClose}
           >
             <Icon name="close" />
@@ -202,6 +203,8 @@ export default function SettingsDialog({ onClose }: Props) {
                 <div
                   key={p}
                   className="provider-card"
+                  role="group"
+                  aria-label={PROVIDER_META[p].label}
                   style={{ "--pc": PROVIDER_META[p].color } as React.CSSProperties}
                 >
                   <div className="provider-card__head">

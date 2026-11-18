@@ -309,7 +309,6 @@ input[type="checkbox"] {
   font-size: var(--fs-md);
   padding: 9px 10px 8px;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
 }
 /* reserve the bold width so tabs do not shift when the selection changes */
 .tab::after {
@@ -377,6 +376,10 @@ input[type="checkbox"] {
   border-radius: 999px;
   font-size: var(--fs-xs);
   white-space: nowrap;
+}
+/* the text is the part that gives way; ellipsis needs a block box, not the flex row */
+.chip span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -567,6 +570,11 @@ input[type="checkbox"] {
   min-width: 190px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
 }
+/* the lower row never has room below for the whole menu: it opens upwards */
+.grid > .panel:nth-child(n + 3) .panel__menu {
+  top: auto;
+  bottom: calc(100% + 2px);
+}
 .panel__menu-label {
   padding: 6px 10px 4px;
   font-size: var(--fs-xs);
@@ -625,8 +633,8 @@ input[type="checkbox"] {
   /* text running under the bottom edge fades out: there is more to scroll */
 }
 /* The fade is --fade tall and shrinks to nothing as the scroll reaches the end.
-   shortcut: without scroll-driven animations (older WebKit) the fade stays, the
-   bottom padding then keeps the last line readable. */
+   shortcut: without scroll-driven animations (older WebKit) there is no fade at
+   all, because the zero-length animation ends at once; the scrollbar remains. */
 @property --fade {
   syntax: "<length>";
   inherits: false;
@@ -944,11 +952,6 @@ input[type="checkbox"] {
   }
   .panel__use {
     padding: 4px;
-  }
-  /* the lower row has no room below: its menu opens upwards */
-  .grid > .panel:nth-child(n + 3) .panel__menu {
-    top: auto;
-    bottom: calc(100% + 4px);
   }
 }
 

@@ -91,11 +91,15 @@ fn is_stream_done(provider: Provider, line: &str) -> bool {
     }
 }
 
+/// How much of an error body is kept: enough for a whole JSON error object, so
+/// `AiError::user_message` can still read the provider's `error.message`.
+const ERROR_BODY_MAX: usize = 4000;
+
+/// Cut on a character boundary: provider error bodies are not ASCII-only.
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max])
+    match s.char_indices().nth(max) {
+        None => s.to_string(),
+        Some((end, _)) => format!("{}…", &s[..end]),
     }
 }
 
@@ -120,7 +124,7 @@ async fn send_once(
         return Err(AiError::Response {
             provider: provider.key().into(),
             status: Some(status.as_u16()),
-            message: truncate(&txt, 500),
+            message: truncate(&txt, ERROR_BODY_MAX),
         });
     }
 
@@ -255,7 +259,7 @@ async fn stream_once<F: FnMut(&str)>(
         return Err(AiError::Response {
             provider: provider.key().into(),
             status: Some(status.as_u16()),
-            message: truncate(&txt, 500),
+            message: truncate(&txt, ERROR_BODY_MAX),
         });
     }
 
@@ -322,6 +326,8 @@ mod tests {
     fn truncate_keeps_short_strings() {
         assert_eq!(truncate("abc", 10), "abc");
         assert_eq!(truncate("abcdef", 3), "abc…");
+        // a multi-byte character on the cut must not panic
+        assert_eq!(truncate("żółw", 2), "żó…");
     }
 
     #[test]

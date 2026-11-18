@@ -3,7 +3,7 @@
 // Writes ux-climb/round-<round>/<state>.png and metrics.json (contrast, clipping).
 // Runs its own Vite on port 5199, so the dev environment on 5173 is not touched.
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,6 @@ if (!round) throw new Error("usage: capture.mjs <round>");
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "ux-climb", `round-${round}`);
 const VITE = 5199;
-const CDP = 9333;
 const base = `http://localhost:${VITE}/ux-climb/harness.html`;
 
 // state -> window size: the default window, plus the minimum window for the long text
@@ -32,19 +31,35 @@ const STATES = {
   "long-end": [720, 520],
   // presses 2 and Ctrl+Enter; the harness throws if neither reaches the backend
   "done-keys": [1100, 760],
+  // an open panel menu owns the keyboard: the same keys must do nothing
+  "menu-keys": [1100, 760],
+  // lower-row menu in a short window (opens upwards), notice chip in the narrow one
+  "menu-low": [1100, 660],
+  "errors-narrow": [720, 520],
 };
 
 mkdirSync(out, { recursive: true });
 const profile = mkdtempSync(join(tmpdir(), "ux-climb-"));
 const kids = [
   spawn("pnpm", ["exec", "vite", "--port", VITE, "--strictPort"], { cwd: root, stdio: "ignore" }),
+  // Port 0: Chrome picks a free one and writes it to its profile, so this script
+  // can only ever drive the browser it started, never someone else's.
   spawn(
     "google-chrome",
     ["--headless=new", "--no-first-run", "--disable-gpu", "--hide-scrollbars=false",
-      `--remote-debugging-port=${CDP}`, `--user-data-dir=${profile}`, "about:blank"],
+      "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"],
     { stdio: "ignore", env: { ...process.env, TZ: "Europe/Warsaw" } },
   ),
 ];
+let finished = false;
+// Vite exits at once when its port is taken; without this the script would
+// screenshot whatever else is listening there.
+kids[0].on("exit", () => {
+  if (!finished) {
+    console.error(`vite exited early (is port ${VITE} taken?)`);
+    process.exit(1);
+  }
+});
 const cleanup = () => {
   kids.forEach((k) => k.kill());
   try {
@@ -53,6 +68,7 @@ const cleanup = () => {
   } catch {}
 };
 process.on("exit", cleanup);
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => process.exit(1));
 
 async function retry(fn) {
   for (let i = 0; ; i++) {
@@ -71,8 +87,11 @@ const ok = async (url) => {
 };
 
 await retry(() => ok(base));
+const cdpPort = await retry(() =>
+  readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n")[0],
+);
 const target = await retry(async () =>
-  (await (await ok(`http://localhost:${CDP}/json/list`)).json()).find((t) => t.type === "page"),
+  (await (await ok(`http://localhost:${cdpPort}/json/list`)).json()).find((t) => t.type === "page"),
 );
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((r, j) => ((ws.onopen = r), (ws.onerror = j)));
@@ -115,4 +134,5 @@ for (const [state, [width, height]] of Object.entries(STATES)) {
 writeFileSync(join(out, "metrics.json"), JSON.stringify(metrics, null, 1) + "\n");
 ws.close();
 console.log(`captured: ${out}`);
+finished = true;
 process.exit(0);

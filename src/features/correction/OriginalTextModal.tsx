@@ -26,7 +26,7 @@ export function OriginalTextModal({ text, onClose }: Props) {
             <Icon name="copy" /> Kopiuj
           </button>
           <span className="spacer" />
-          <button className="primary" onClick={onClose}>
+          <button className="primary" autoFocus onClick={onClose}>
             Zamknij
           </button>
         </footer>
