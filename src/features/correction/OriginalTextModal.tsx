@@ -19,7 +19,13 @@ export function OriginalTextModal({ text, onClose }: Props) {
           </button>
         </header>
         <div className="modal__body">
-          <textarea className="original__text" readOnly autoFocus value={text} />
+          <textarea
+            className="original__text"
+            aria-label="Oryginalny tekst"
+            readOnly
+            autoFocus
+            value={text}
+          />
         </div>
         <footer className="modal__actions">
           <button onClick={() => writeClipboard(text)}>

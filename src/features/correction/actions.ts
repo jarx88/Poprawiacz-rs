@@ -7,9 +7,9 @@ export function keyAction(
   >,
   inField: boolean,
 ): number | "run" | null {
-  if (e.repeat || e.isComposing || e.altKey || e.metaKey) return null;
-  if (e.ctrlKey) return e.key === "Enter" && !e.shiftKey ? "run" : null;
-  // Shift is fine below: some layouts (AZERTY) type digits with it
+  // Shift too: a held Shift would turn the simulated Ctrl+V into Ctrl+Shift+V
+  if (e.repeat || e.isComposing || e.altKey || e.metaKey || e.shiftKey) return null;
+  if (e.ctrlKey) return e.key === "Enter" ? "run" : null;
   if (inField) return null; // digits typed into a text field are just text
   const i = ["1", "2", "3", "4"].indexOf(e.key);
   return i < 0 ? null : i;

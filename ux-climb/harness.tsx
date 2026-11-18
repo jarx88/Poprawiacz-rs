@@ -147,7 +147,11 @@ async function main() {
   if (variant === "keys") {
     const press = (init: KeyboardEventInit) =>
       window.dispatchEvent(new KeyboardEvent("keydown", init));
+    const chip = () => document.querySelector(".composer__notice .chip");
+    if (state === "done") await emit("hotkey-empty"); // a failure notice to clear
     press({ key: "2" }); // second panel: Anthropic
+    await sleep(50);
+    if (chip()) throw new Error("a successful paste left the old failure notice");
     press({ key: "Enter", ctrlKey: true });
     await sleep(100);
     const pasted = (calls.paste_text as { text?: string } | undefined)?.text;
@@ -168,6 +172,7 @@ async function main() {
   }
   if (variant === "blur") {
     // focus leaving the menu button and its list closes the menu
+    if (!document.querySelector(".panel__menu")) throw new Error("menu never opened");
     document.querySelector<HTMLElement>('[data-ux="menu-anthropic"]')!.focus();
     document.querySelector<HTMLElement>(".composer__input")!.focus();
     await sleep(50);
