@@ -161,25 +161,25 @@ export default function SettingsDialog({ onClose }: Props) {
   };
   /** Lists are fetched for the route in use only: opening the dialog in
    *  OpenRouter mode sends nothing to the providers. */
-  const switchRoute = (on: boolean, present = keysPresent) => {
+  const switchRoute = (on: boolean, present = keysPresent, refetch = false) => {
     setOpenrouter(on);
     setManual({}); // manual entry belongs to the route it was chosen on
     if (on) {
       if (!PROVIDERS.some((p) => Array.isArray(orLists[p]))) loadOrModels();
     } else {
       for (const p of PROVIDERS)
-        if (present[p] && modelLists[p] === undefined) void loadModels(p);
+        if (present[p] && (refetch || modelLists[p] === undefined)) void loadModels(p);
     }
   };
 
-  const applyView = (s: Awaited<ReturnType<typeof getSettings>>) => {
+  const applyView = (s: Awaited<ReturnType<typeof getSettings>>, refetch = false) => {
     const names = (from: Record<Provider, string | null>) =>
       Object.fromEntries(PROVIDERS.map((p) => [p, from[p] ?? ""])) as Record<Provider, string>;
     setModels(names(s.models));
     setSavedModels(names(s.models));
     setOrModels(names(s.openrouter_models));
     setSavedOrModels(names(s.openrouter_models));
-    switchRoute(s.openrouter, s.keys_present ?? {});
+    switchRoute(s.openrouter, s.keys_present ?? {}, refetch);
     setDefaultStyle(s.default_style || "normal");
     setHighlightDiffs(s.highlight_diffs);
     setAutostartup(s.autostartup);
@@ -236,7 +236,9 @@ export default function SettingsDialog({ onClose }: Props) {
     try {
       const n = await migrateConfigIni(path);
       setStatus(`Zmigrowano ${n} kluczy.`);
-      applyView(await getSettings());
+      const view = await getSettings();
+      setModelLists({}); // the migration may have replaced the keys they came from
+      applyView(view, true);
     } catch (e) {
       setStatus(`Migracja nieudana: ${e}`);
     }
@@ -509,7 +511,7 @@ export default function SettingsDialog({ onClose }: Props) {
         </div>
 
         <footer className="modal__actions">
-          <button onClick={migrate}>Migruj config.ini</button>
+          <button data-ux="migrate" onClick={migrate}>Migruj config.ini</button>
           <span className="modal__status" role="status">
             {status}
           </span>
