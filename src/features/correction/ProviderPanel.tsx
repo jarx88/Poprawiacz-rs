@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Icon } from "../../Icon";
 import { openSettings } from "../../lib/tauri";
 import { useEscape } from "../../lib/useEscape";
-import { isKeyError } from "./actions";
+import { fixableInSettings } from "./actions";
 import { diffWords } from "./diff";
 import { PanelState, Provider, PROVIDER_META, STYLE_LABELS, Style } from "./types";
 
@@ -227,8 +227,8 @@ export function ProviderPanel({
           <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
             <Icon name="retry" /> Ponów {meta.label}
           </button>
-          {/* a missing or rejected key is fixed in settings, not by retrying */}
-          {isKeyError(state.error) && (
+          {/* a missing or rejected key, or an unknown model, is fixed in settings */}
+          {fixableInSettings(state.error) && (
             <button className="panel__use panel__use--retry" onClick={() => openSettings()}>
               <Icon name="settings" /> Ustawienia
             </button>

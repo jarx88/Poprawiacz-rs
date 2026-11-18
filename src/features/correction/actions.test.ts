@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isKeyError, keyAction } from "./actions";
+import { fixableInSettings, keyAction } from "./actions";
 
 const key = (key: string, mods: Partial<KeyboardEvent> = {}) => ({
   key,
@@ -30,12 +30,22 @@ describe("keyAction", () => {
   });
 });
 
-describe("isKeyError", () => {
-  it("recognises a missing or rejected key, nothing else", () => {
-    expect(isKeyError("Brak klucza API")).toBe(true);
-    expect(isKeyError("response error (anthropic, status Some(401)): invalid x-api-key")).toBe(true);
-    expect(isKeyError("response error (gemini, status Some(503)): overloaded")).toBe(false);
-    expect(isKeyError("timeout (openai) after 35s")).toBe(false);
-    expect(isKeyError(null)).toBe(false);
+describe("fixableInSettings", () => {
+  // the strings are the backend's own (AiError::user_message, modules/ai.rs)
+  it("recognises errors that settings can fix, nothing else", () => {
+    expect(fixableInSettings("Brak klucza API. Dodaj go w ustawieniach.")).toBe(true);
+    expect(
+      fixableInSettings(
+        "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach. Szczegóły (HTTP 401): invalid x-api-key",
+      ),
+    ).toBe(true);
+    expect(
+      fixableInSettings("Dostawca nie zna tego modelu. Sprawdź nazwę modelu w ustawieniach. (HTTP 404)"),
+    ).toBe(true);
+    expect(
+      fixableInSettings("Serwer dostawcy ma awarię albo jest przeciążony. Spróbuj za chwilę. (HTTP 503)"),
+    ).toBe(false);
+    expect(fixableInSettings("Dostawca nie odpowiedział w ciągu 35 s. Spróbuj ponownie.")).toBe(false);
+    expect(fixableInSettings(null)).toBe(false);
   });
 });

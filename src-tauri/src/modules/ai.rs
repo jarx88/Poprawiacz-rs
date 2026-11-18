@@ -47,7 +47,7 @@ fn spawn_provider(
             tracing::info!(provider = provider.key(), session_id, "task: start");
             let Some(api_key) = key else {
                 tracing::warn!(provider = provider.key(), "task: no API key");
-                emit_error(&app, session_id, provider, "Brak klucza API");
+                emit_error(&app, session_id, provider, "Brak klucza API. Dodaj go w ustawieniach.");
                 return;
             };
 
@@ -104,7 +104,7 @@ fn spawn_provider(
                 }
                 Err(e) => {
                     tracing::error!(provider = provider.key(), elapsed_ms, "task: error: {e}");
-                    emit_error(&app, session_id, provider, &e.to_string());
+                    emit_error(&app, session_id, provider, &e.user_message());
                 }
             }
         });
@@ -114,7 +114,7 @@ fn spawn_provider(
             Ok(Ok(())) => {}
             Ok(Err(_panic)) => {
                 tracing::error!(provider = provider.key(), "task: PANICKED");
-                emit_error(&app_guard, session_id, provider, "Wewnętrzny błąd (panic) — sprawdź log");
+                emit_error(&app_guard, session_id, provider, "Wewnętrzny błąd aplikacji. Szczegóły są w logu.");
             }
             Err(_elapsed) => {
                 tracing::error!(provider = provider.key(), secs = hard.as_secs(), "task: HARD TIMEOUT");
@@ -122,7 +122,7 @@ fn spawn_provider(
                     &app_guard,
                     session_id,
                     provider,
-                    &format!("Przekroczono czas ({}s)", hard.as_secs()),
+                    &format!("Dostawca nie odpowiedział w ciągu {} s. Spróbuj ponownie.", hard.as_secs()),
                 );
             }
         }

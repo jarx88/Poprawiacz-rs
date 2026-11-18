@@ -85,8 +85,9 @@ const STATES: Record<string, Record<Provider, PanelState> | null> = {
     openai: done("openai", 4210),
     anthropic: panel({
       status: "error",
-      // the backend's real wording (AiError::Response)
-      error: "response error (anthropic, status Some(401)): invalid x-api-key",
+      // the backend's real wording (AiError::user_message)
+      error:
+        "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach. Szczegóły (HTTP 401): invalid x-api-key",
     }),
     gemini: panel({ status: "cancelled" }),
     deepseek: done("deepseek", 2870),

@@ -40,6 +40,40 @@ impl AiError {
         }
     }
 
+    /// What the panel shows: a Polish sentence saying what went wrong and what to
+    /// do about it. `Display` stays technical, for the log.
+    /// The frontend offers a "Ustawienia" button when the text says
+    /// "w ustawieniach" (`fixableInSettings` in `actions.ts`).
+    pub fn user_message(&self) -> String {
+        match self {
+            AiError::Connection { .. } => {
+                "Brak połączenia z dostawcą. Sprawdź internet i spróbuj ponownie.".into()
+            }
+            AiError::Timeout { seconds, .. } => {
+                format!("Dostawca nie odpowiedział w ciągu {seconds} s. Spróbuj ponownie.")
+            }
+            AiError::Cancelled { .. } => "Anulowano.".into(),
+            AiError::Response { status, message, .. } => {
+                let lead = match status {
+                    Some(401 | 403) => "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach.",
+                    Some(404) => "Dostawca nie zna tego modelu. Sprawdź nazwę modelu w ustawieniach.",
+                    Some(429) => "Limit zapytań albo środków u dostawcy jest wyczerpany. Spróbuj za chwilę.",
+                    Some(400 | 422) => "Dostawca odrzucił zapytanie. Sprawdź model w ustawieniach.",
+                    Some(s) if *s >= 500 => "Serwer dostawcy ma awarię albo jest przeciążony. Spróbuj za chwilę.",
+                    Some(_) => "Dostawca zwrócił błąd.",
+                    None => "Dostawca zwrócił odpowiedź, której nie da się odczytać.",
+                };
+                let detail = provider_detail(message);
+                match (status, detail.is_empty()) {
+                    (Some(s), true) => format!("{lead} (HTTP {s})"),
+                    (Some(s), false) => format!("{lead} Szczegóły (HTTP {s}): {detail}"),
+                    (None, true) => lead.into(),
+                    (None, false) => format!("{lead} Szczegóły: {detail}"),
+                }
+            }
+        }
+    }
+
     /// Classify a `reqwest::Error` into an `AiError` for a provider.
     pub fn from_reqwest(provider: &str, seconds: u64, err: &reqwest::Error) -> AiError {
         if err.is_timeout() {
@@ -62,9 +96,59 @@ impl AiError {
     }
 }
 
+/// The provider's own explanation: `error.message` from a JSON error body (an
+/// array of such objects for Gemini streams), otherwise the body as it came,
+/// cut to a length that fits a panel.
+fn provider_detail(body: &str) -> String {
+    let text = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.pointer("/error/message")
+                .or_else(|| v.pointer("/0/error/message"))
+                .and_then(|m| m.as_str())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| body.trim().to_owned());
+    text.chars().take(200).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn response(status: Option<u16>, message: &str) -> String {
+        AiError::Response { provider: "x".into(), status, message: message.into() }.user_message()
+    }
+
+    #[test]
+    fn user_message_names_the_cause_and_the_fix() {
+        assert_eq!(
+            response(Some(401), r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#),
+            "Dostawca odrzucił klucz API. Sprawdź klucz w ustawieniach. Szczegóły (HTTP 401): invalid x-api-key"
+        );
+        assert!(response(Some(404), "").starts_with("Dostawca nie zna tego modelu."));
+        assert!(response(Some(404), "").ends_with("(HTTP 404)"));
+        assert!(response(Some(429), "").starts_with("Limit zapytań"));
+        assert!(response(Some(503), "").starts_with("Serwer dostawcy"));
+        assert_eq!(
+            AiError::Timeout { provider: "x".into(), seconds: 25 }.user_message(),
+            "Dostawca nie odpowiedział w ciągu 25 s. Spróbuj ponownie."
+        );
+    }
+
+    #[test]
+    fn user_message_detail_survives_odd_bodies() {
+        // Gemini stream errors arrive as an array
+        assert!(response(Some(400), r#"[{"error":{"message":"bad model"}}]"#).ends_with("(HTTP 400): bad model"));
+        // a body cut mid-JSON, or not JSON at all, is shown as it came
+        assert!(response(Some(500), "<html>Bad Gateway").ends_with("(HTTP 500): <html>Bad Gateway"));
+        assert_eq!(
+            response(None, "empty candidate text"),
+            "Dostawca zwrócił odpowiedź, której nie da się odczytać. Szczegóły: empty candidate text"
+        );
+        // long bodies are cut on a character boundary
+        assert!(response(Some(500), &"ż".repeat(900)).chars().count() < 300);
+    }
 
     #[test]
     fn cancellation_is_not_retryable() {
