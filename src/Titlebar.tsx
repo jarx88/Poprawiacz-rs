@@ -14,6 +14,8 @@ export function Titlebar({ onSettings }: Props) {
   const win = getCurrentWindow();
   const { sessionId, panels } = useCorrectionStore();
   const done = completedCount(panels);
+  // green only when all four actually answered, not merely finished
+  const allOk = Object.values(panels).every((p) => p.status === "done");
   const [build, setBuild] = useState<BuildInfo | null>(null);
   useEffect(() => {
     getAppBuild().then(setBuild, () => {});
@@ -33,7 +35,8 @@ export function Titlebar({ onSettings }: Props) {
       </div>
       <div className="titlebar__spacer" data-tauri-drag-region />
       <span className="titlebar__session">
-        sesja {sessionId} · api {done}/4
+        sesja {sessionId} ·{" "}
+        <span className={allOk ? "titlebar__ok" : undefined}>api {done}/4</span>
       </span>
       <div className="titlebar__controls">
         <button

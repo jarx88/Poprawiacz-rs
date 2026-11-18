@@ -64,9 +64,10 @@ export function ProviderPanel({
     if (state.status === "idle") return null;
     if (state.status === "error") {
       return (
-        <p className="panel__error" role="alert">
-          {state.error}
-        </p>
+        <div className="panel__error" role="alert">
+          <strong>Zapytanie nie powiodło się</strong>
+          <p>{state.error}</p>
+        </div>
       );
     }
     if (state.status === "cancelled") {
@@ -143,6 +144,18 @@ export function ProviderPanel({
               <Icon name="like" />
             </button>
           )}
+          {/* The menu keeps the right edge in every state, so it stays under the
+              cursor when a panel finishes; cancel and like share the slot before it. */}
+          {busy && (
+            <button
+              className="icon-btn icon-btn--cancel"
+              title="Anuluj ten panel"
+              aria-label={`Anuluj ${meta.label}`}
+              onClick={() => onCancel(provider)}
+            >
+              <Icon name="close" />
+            </button>
+          )}
           <span className="panel__menu-wrap">
             <button
               data-ux={`menu-${provider}`}
@@ -182,16 +195,6 @@ export function ProviderPanel({
               </div>
             )}
           </span>
-          {busy && (
-            <button
-              className="icon-btn"
-              title="Anuluj ten panel"
-              aria-label={`Anuluj ${meta.label}`}
-              onClick={() => onCancel(provider)}
-            >
-              <Icon name="close" />
-            </button>
-          )}
         </span>
       </header>
 

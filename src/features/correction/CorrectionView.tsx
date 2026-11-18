@@ -195,7 +195,11 @@ export function CorrectionView() {
             <Icon name="stop" />
             Anuluj wszystko
           </button>
-          <button className="cta" onClick={runManual}>
+          {/* Once an answer is ready, "Użyj" is the primary action and this one steps back. */}
+          <button
+            className={`cta${PROVIDERS.some((p) => panels[p].status === "done") ? " cta--quiet" : ""}`}
+            onClick={runManual}
+          >
             Popraw
           </button>
         </div>
