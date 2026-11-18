@@ -31,6 +31,8 @@ export interface PanelState {
   error: string | null;
   elapsedMs: number | null;
   style: Style;
+  /** The reprocess attempt this panel shows (0: the session's first run). */
+  attempt: number;
 }
 
 export interface SessionStartedEvent {
@@ -38,23 +40,25 @@ export interface SessionStartedEvent {
   text: string;
 }
 
-export interface ChunkEvent {
+/** Common to every per-provider event. `attempt` tells a panel's runs apart
+ *  within one session; it is absent only on the local, optimistic cancel. */
+interface ProviderEvent {
   session_id: number;
   provider: Provider;
+  attempt?: number;
+}
+
+export interface ChunkEvent extends ProviderEvent {
   delta: string;
 }
 
-export interface ResultEvent {
-  session_id: number;
-  provider: Provider;
+export interface ResultEvent extends ProviderEvent {
   text: string;
   style: Style;
   elapsed_ms: number;
 }
 
-export interface ErrorEvent {
-  session_id: number;
-  provider: Provider;
+export interface ErrorEvent extends ProviderEvent {
   message: string;
 }
 
@@ -82,7 +86,4 @@ export const STYLE_LABELS: Record<Style, string> = {
   prompt: "Prompt",
 };
 
-export interface CancelEvent {
-  session_id: number;
-  provider: Provider;
-}
+export type CancelEvent = ProviderEvent;

@@ -791,6 +791,13 @@ dialog.modal {
   border: 0;
   color: inherit;
 }
+/* the overlay is the dialog itself, and it is gone as soon as it closes */
+dialog.modal::backdrop {
+  background: none;
+}
+dialog.modal:not([open]) {
+  display: none;
+}
 .modal__card {
   display: flex;
   flex-direction: column;

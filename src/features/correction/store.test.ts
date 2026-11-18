@@ -91,4 +91,32 @@ describe("correction store session isolation", () => {
     expect(store().panels.openai.text).toBe("final");
     expect(store().panels.openai.status).toBe("done");
   });
+
+  it("drops events of a run that a reprocess replaced", () => {
+    store().startSession(9, "x");
+    store().applyRestarted({ session_id: 9, provider: "openai", attempt: 3 });
+    // the replaced run reports late, under the same session id
+    store().applyCancelled({ session_id: 9, provider: "openai", attempt: 0 });
+    store().applyChunk({ session_id: 9, provider: "openai", attempt: 0, delta: "old" });
+    store().applyError({ session_id: 9, provider: "openai", attempt: 0, message: "old" });
+    store().applyResult({ session_id: 9, provider: "openai", attempt: 0, text: "old", style: "normal", elapsed_ms: 1 });
+    expect(store().panels.openai).toMatchObject({ status: "loading", text: "" });
+
+    store().applyResult({ session_id: 9, provider: "openai", attempt: 3, text: "new", style: "summary", elapsed_ms: 1 });
+    expect(store().panels.openai).toMatchObject({ status: "done", text: "new", attempt: 3 });
+  });
+
+  it("applies the local cancel, which has no attempt, to a reprocessed panel", () => {
+    store().startSession(9, "x");
+    store().applyRestarted({ session_id: 9, provider: "openai", attempt: 3 });
+    store().applyCancelled({ session_id: 9, provider: "openai" });
+    expect(store().panels.openai.status).toBe("cancelled");
+  });
+
+  it("keeps a fast failure when the same session is started again", () => {
+    store().startSession(11, "x");
+    store().applyError({ session_id: 11, provider: "openai", attempt: 0, message: "brak klucza" });
+    store().startSession(11, "x");
+    expect(store().panels.openai.status).toBe("error");
+  });
 });
