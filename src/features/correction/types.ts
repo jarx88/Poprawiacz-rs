@@ -70,12 +70,13 @@ export const STYLES = [
 
 export type Style = (typeof STYLES)[number];
 
-/** Polish display labels for styles (parity with the Python dropdown). */
+/** Polish display labels for styles: one name per style on every screen, short
+ *  enough for all seven tabs to fit the minimum window. */
 export const STYLE_LABELS: Record<Style, string> = {
   normal: "Normalny",
   professional: "Profesjonalny",
-  translate_en: "Tłumacz na angielski",
-  translate_pl: "Tłumacz na polski",
+  translate_en: "Tłumacz EN",
+  translate_pl: "Tłumacz PL",
   change_meaning: "Zmień treść",
   summary: "Podsumowanie",
   prompt: "Prompt",

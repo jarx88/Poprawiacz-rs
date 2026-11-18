@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Icon } from "../../Icon";
+import { useEscape } from "../../lib/useEscape";
 import { diffWords } from "./diff";
-import { PanelState, Provider, PROVIDER_META, Style } from "./types";
+import { PanelState, Provider, PROVIDER_META, STYLE_LABELS, Style } from "./types";
 
 interface Props {
   provider: Provider;
@@ -17,14 +19,14 @@ interface Props {
 function statusLabel(state: PanelState): string {
   switch (state.status) {
     case "idle":
-      return "—";
+      return "";
     case "loading":
-      return "przetwarzanie…";
+      return "czeka…";
     case "streaming":
-      return "strumieniowanie…";
+      return "pisze…";
     case "done":
       return state.elapsedMs != null
-        ? `${(state.elapsedMs / 1000).toFixed(1)}s`
+        ? `${(state.elapsedMs / 1000).toFixed(1)} s`
         : "gotowe";
     case "error":
       return "błąd";
@@ -33,12 +35,7 @@ function statusLabel(state: PanelState): string {
   }
 }
 
-const REPROCESS_ACTIONS: { label: string; style: string }[] = [
-  { label: "Profesjonalny", style: "professional" },
-  { label: "Tłumacz EN", style: "translate_en" },
-  { label: "Tłumacz PL", style: "translate_pl" },
-  { label: "Podsumowanie", style: "summary" },
-];
+const REPROCESS_STYLES: Style[] = ["professional", "translate_en", "translate_pl", "summary"];
 
 export function ProviderPanel({
   provider,
@@ -55,6 +52,7 @@ export function ProviderPanel({
   const [menuOpen, setMenuOpen] = useState(false);
   const [likedKey, setLikedKey] = useState("");
   const [liking, setLiking] = useState(false);
+  useEscape(() => setMenuOpen(false));
   const canUse = state.status === "done" && state.text.trim() !== "";
   const likeKey = `${originalText}\u0000${state.style}\u0000${state.text}`;
   const liked = likedKey === likeKey;
@@ -62,11 +60,18 @@ export function ProviderPanel({
   const failed = state.status === "error" || state.status === "cancelled";
 
   const body = () => {
+    if (state.status === "idle") {
+      return <p className="panel__note">Tu pojawi się wersja {meta.label}</p>;
+    }
     if (state.status === "error") {
-      return <p className="panel__error">{state.error}</p>;
+      return (
+        <p className="panel__error" role="alert">
+          {state.error}
+        </p>
+      );
     }
     if (state.status === "cancelled") {
-      return <p className="panel__error">Anulowano.</p>;
+      return <p className="panel__note">Anulowano. Możesz ponowić tylko ten panel.</p>;
     }
     if (busy && state.text === "") {
       return <div className="panel__spinner" aria-label="Ładowanie" />;
@@ -91,67 +96,9 @@ export function ProviderPanel({
 
   return (
     <section
-      className={`panel${failed ? " panel--failed" : ""}`}
+      className={`panel panel--${state.status}`}
       style={{ "--pc": meta.color } as React.CSSProperties}
     >
-      <header className="panel__head">
-        <span className="panel__title">
-          {meta.label} <span className="panel__dot" />
-        </span>
-        <span className="panel__head-right">
-          <span className="panel__status">{statusLabel(state)}</span>
-          {state.status === "done" && (
-            <button
-              className={`panel__icon panel__icon--like${liked ? " panel__icon--liked" : ""}`}
-              title={liked ? "Zapamiętano tę korektę" : "Zapamiętaj jako dobry przykład"}
-              aria-label={liked ? "Korekta zapamiętana" : "Zapamiętaj korektę"}
-              aria-pressed={liked}
-              disabled={!canUse || liking || liked}
-              onClick={async () => {
-                setLiking(true);
-                if (await onLike(state.text, state.style)) setLikedKey(likeKey);
-                setLiking(false);
-              }}
-            >
-              👍
-            </button>
-          )}
-          <span className="panel__menu-wrap">
-            <button
-              className="panel__icon"
-              title="Akcje"
-              onClick={() => setMenuOpen((o) => !o)}
-            >
-              ⚙
-            </button>
-            {menuOpen && (
-              <div className="panel__menu" onMouseLeave={() => setMenuOpen(false)}>
-                {REPROCESS_ACTIONS.map((a) => (
-                  <button
-                    key={a.style}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onReprocess(provider, a.style);
-                    }}
-                  >
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </span>
-          {busy && (
-            <button
-              className="panel__icon"
-              title="Anuluj"
-              onClick={() => onCancel(provider)}
-            >
-              ✖
-            </button>
-          )}
-        </span>
-      </header>
-
       {busy && (
         <div
           className="panel__progress"
@@ -162,11 +109,85 @@ export function ProviderPanel({
         </div>
       )}
 
+      <header className="panel__head">
+        <span className="panel__title">
+          <span className="panel__dot" />
+          {meta.label}
+        </span>
+        <span className="panel__head-right">
+          <span className={`panel__status panel__status--${state.status}`}>
+            {state.status === "error" && <Icon name="alert" size={14} />}
+            {statusLabel(state)}
+          </span>
+          {state.status === "done" && (
+            <button
+              data-ux={`like-${provider}`}
+              className={`icon-btn${liked ? " icon-btn--on" : ""}`}
+              title={liked ? "Zapamiętano tę korektę" : "Zapamiętaj jako dobry przykład"}
+              aria-label={liked ? "Korekta zapamiętana" : "Zapamiętaj korektę"}
+              aria-pressed={liked}
+              disabled={!canUse || liking || liked}
+              onClick={async () => {
+                setLiking(true);
+                if (await onLike(state.text, state.style)) setLikedKey(likeKey);
+                setLiking(false);
+              }}
+            >
+              <Icon name="like" />
+            </button>
+          )}
+          <span className="panel__menu-wrap">
+            <button
+              data-ux={`menu-${provider}`}
+              className="icon-btn"
+              title="Przetwórz ponownie w innym stylu"
+              aria-label="Przetwórz ponownie w innym stylu"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <Icon name="more" />
+            </button>
+            {menuOpen && (
+              <div
+                className="panel__menu"
+                role="menu"
+                onMouseLeave={() => setMenuOpen(false)}
+              >
+                <span className="panel__menu-label">Przetwórz ponownie jako</span>
+                {REPROCESS_STYLES.map((s) => (
+                  <button
+                    key={s}
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onReprocess(provider, s);
+                    }}
+                  >
+                    {STYLE_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
+          {busy && (
+            <button
+              className="icon-btn"
+              title="Anuluj ten panel"
+              aria-label={`Anuluj ${meta.label}`}
+              onClick={() => onCancel(provider)}
+            >
+              <Icon name="close" />
+            </button>
+          )}
+        </span>
+      </header>
+
       <div className="panel__body">{body()}</div>
 
       {failed ? (
         <button className="panel__use panel__use--retry" onClick={() => onRetry(provider)}>
-          Ponów ↻
+          <Icon name="retry" /> Ponów {meta.label}
         </button>
       ) : (
         <button
