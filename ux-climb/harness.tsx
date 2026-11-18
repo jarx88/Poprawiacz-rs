@@ -55,6 +55,7 @@ const panel = (p: Partial<PanelState>): PanelState => ({
   error: null,
   elapsedMs: null,
   style: "normal",
+  attempt: 0,
   ...p,
 });
 const done = (prov: Provider, ms: number, text = FIXED[prov]) =>

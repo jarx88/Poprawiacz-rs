@@ -18,11 +18,14 @@ use super::AppState;
 
 /// Spawn one provider's correction task within `session_id`, emitting
 /// chunk/result/error/cancelled events. Shared by full runs and single-panel
-/// reprocessing.
+/// reprocessing. Every event carries `attempt` (0 for the session's first run,
+/// rising with each reprocess): the frontend drops events of an attempt that a
+/// newer one has replaced, since they share the session id.
 #[allow(clippy::too_many_arguments)]
 fn spawn_provider(
     app: &AppHandle,
     session_id: u64,
+    attempt: u64,
     provider: Provider,
     text: String,
     style: Style,
@@ -47,7 +50,7 @@ fn spawn_provider(
             tracing::info!(provider = provider.key(), session_id, "task: start");
             let Some(api_key) = key else {
                 tracing::warn!(provider = provider.key(), "task: no API key");
-                emit_error(&app, session_id, provider, "Brak klucza API. Dodaj go w ustawieniach.");
+                emit_error(&app, session_id, attempt, provider, "Brak klucza API. Dodaj go w ustawieniach.");
                 return;
             };
 
@@ -67,26 +70,12 @@ fn spawn_provider(
             };
 
             let started = Instant::now();
-            // An attempt replaced by a newer one (reprocess) must stay silent: its
-            // late events carry the same session id and would land on the new attempt.
-            let superseded = {
-                let (app, token) = (app.clone(), token.clone());
-                move || {
-                    let state = app.state::<AppState>();
-                    let cancels = state.cancel.lock().expect("cancel mutex poisoned");
-                    cancels.superseded(provider, &token)
-                }
-            };
             let result = if stream {
                 let app_chunk = app.clone();
-                let superseded = superseded.clone();
                 ai::correct_stream(&http, &req, &token, move |delta| {
-                    if superseded() {
-                        return;
-                    }
                     let _ = app_chunk.emit(
                         "provider-chunk",
-                        json!({ "session_id": session_id, "provider": provider, "delta": delta }),
+                        json!({ "session_id": session_id, "attempt": attempt, "provider": provider, "delta": delta }),
                     );
                 })
                 .await
@@ -95,10 +84,6 @@ fn spawn_provider(
             };
 
             let elapsed_ms = started.elapsed().as_millis() as u64;
-            if superseded() {
-                tracing::info!(provider = provider.key(), "task: superseded");
-                return;
-            }
             match result {
                 Ok(text) => {
                     tracing::info!(provider = provider.key(), elapsed_ms, len = text.len(), "task: result");
@@ -106,6 +91,7 @@ fn spawn_provider(
                         "provider-result",
                         json!({
                             "session_id": session_id,
+                            "attempt": attempt,
                             "provider": provider,
                             "text": text,
                             "style": style.as_key(),
@@ -117,12 +103,12 @@ fn spawn_provider(
                     tracing::info!(provider = provider.key(), "task: cancelled");
                     let _ = app.emit(
                         "provider-cancelled",
-                        json!({ "session_id": session_id, "provider": provider }),
+                        json!({ "session_id": session_id, "attempt": attempt, "provider": provider }),
                     );
                 }
                 Err(e) => {
                     tracing::error!(provider = provider.key(), elapsed_ms, "task: error: {e}");
-                    emit_error(&app, session_id, provider, &e.user_message());
+                    emit_error(&app, session_id, attempt, provider, &e.user_message());
                 }
             }
         });
@@ -132,13 +118,14 @@ fn spawn_provider(
             Ok(Ok(())) => {}
             Ok(Err(_panic)) => {
                 tracing::error!(provider = provider.key(), "task: PANICKED");
-                emit_error(&app_guard, session_id, provider, "Wewnętrzny błąd aplikacji. Szczegóły są w logu.");
+                emit_error(&app_guard, session_id, attempt, provider, "Wewnętrzny błąd aplikacji. Szczegóły są w logu.");
             }
             Err(_elapsed) => {
                 tracing::error!(provider = provider.key(), secs = hard.as_secs(), "task: HARD TIMEOUT");
                 emit_error(
                     &app_guard,
                     session_id,
+                    attempt,
                     provider,
                     &format!("Dostawca nie odpowiedział w ciągu {} s. Spróbuj ponownie.", hard.as_secs()),
                 );
@@ -179,16 +166,16 @@ pub fn run_correction(app: &AppHandle, text: String, style: Style) -> u64 {
     );
 
     for provider in Provider::ALL {
-        spawn_provider(app, session_id, provider, text.clone(), style, tokens[&provider].clone());
+        spawn_provider(app, session_id, 0, provider, text.clone(), style, tokens[&provider].clone());
     }
 
     session_id
 }
 
-fn emit_error(app: &AppHandle, session_id: u64, provider: Provider, message: &str) {
+fn emit_error(app: &AppHandle, session_id: u64, attempt: u64, provider: Provider, message: &str) {
     let _ = app.emit(
         "provider-error",
-        json!({ "session_id": session_id, "provider": provider, "message": message }),
+        json!({ "session_id": session_id, "attempt": attempt, "provider": provider, "message": message }),
     );
 }
 
@@ -231,11 +218,12 @@ pub fn reprocess_provider(app: AppHandle, provider: String, style: String) -> Re
         guard.cancel_one(p);
         guard.tokens.insert(p, token.clone());
     }
+    let attempt = state.attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     let _ = app.emit(
         "provider-restarted",
-        json!({ "session_id": session_id, "provider": p }),
+        json!({ "session_id": session_id, "attempt": attempt, "provider": p }),
     );
-    spawn_provider(&app, session_id, p, text, Style::from_key(&style), token);
+    spawn_provider(&app, session_id, attempt, p, text, Style::from_key(&style), token);
     Ok(())
 }
 

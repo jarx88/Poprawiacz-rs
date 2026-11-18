@@ -139,6 +139,8 @@ for (const [state, [width, height]] of Object.entries(STATES)) {
   }
   if (state.endsWith("-esc")) {
     // sent through the browser: a native dialog ignores synthetic key events
+    if (!(await evaluate("document.querySelectorAll('dialog:modal').length")))
+      throw new Error(`no dialog to close in ${state}`);
     for (const type of ["keyDown", "keyUp"])
       await cdp("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
     const open = await evaluate(
